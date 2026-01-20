@@ -14,11 +14,12 @@
     label { display:block; margin-top: 10px; }
     input, select { width: 100%; padding: 10px; margin-top: 6px; border: 1px solid #ddd; border-radius: 10px; }
     button { padding: 10px 14px; margin-top: 12px; cursor: pointer; border: 1px solid #ddd; border-radius: 10px; background: #fff; }
+    button[disabled] { cursor: not-allowed; opacity: 0.6; }
     .row { display:flex; gap: 12px; align-items: end; }
     .row > div { flex: 1; }
     .muted { opacity: .75; font-size: 13px; }
     #calendar { margin-top: 10px; }
-    #out { white-space: pre-wrap; background:#f7f7f7; padding:10px; border-radius:10px; border:1px solid #eee; }
+    #out { white-space: pre-wrap; background:#f7f7f7; padding:10px; border-radius:10px; border:1px solid #eee; min-height: 42px; }
 
     /* Stile eventi (blocchi) più simile a channel manager */
     .fc .fc-daygrid-event { border-radius: 8px; padding: 2px 6px; }
@@ -46,8 +47,8 @@
         </label>
       </div>
       <div style="flex:0.6">
-        <button id="btnLogin">Accedi</button>
-        <button id="btnReset" title="Pulisce sessione e ricarica">Reset</button>
+        <button id="btnLogin" type="button">Accedi</button>
+        <button id="btnReset" type="button" title="Pulisce sessione e ricarica">Reset</button>
       </div>
     </div>
     <div id="authStatus" class="muted"></div>
@@ -61,7 +62,7 @@
         </label>
       </div>
       <div style="flex:0.8">
-        <button id="btnReload">Ricarica calendario</button>
+        <button id="btnReload" type="button">Ricarica calendario</button>
       </div>
     </div>
 
@@ -75,7 +76,7 @@
     <div id="calendar"></div>
 
     <div class="muted" style="margin-top:10px;">Debug</div>
-    <div id="out"></div>
+    <div id="out" aria-live="polite"></div>
   </div>
 
   <script type="module">
@@ -94,7 +95,17 @@
       const s = String(msg);
       console.log("[APP]", s);
       const target = el("out");
-      if (target) target.textContent = s;
+      if (target) {
+        const now = new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+        const next = `[${now}] ${s}`;
+        target.textContent = target.textContent ? `${target.textContent}\n${next}` : next;
+      }
+    };
+
+    const setLoading = (isLoading) => {
+      const btn = el("btnReload");
+      if (btn) btn.disabled = isLoading;
+      el("strutturaSelect").disabled = isLoading;
     };
 
     const clearSbStorage = () => {
@@ -106,6 +117,7 @@
     };
 
     let calendar = null;
+    let suppressDatesSet = false;
 
     function ensureCalendar() {
       if (calendar) return;
@@ -134,7 +146,7 @@
         },
 
         datesSet: async function(arg) {
-          // ogni cambio mese/settimana ricarica
+          if (suppressDatesSet) return;
           await reloadCalendarEvents(arg.startStr, arg.endStr);
         }
       });
@@ -208,45 +220,50 @@
       const end = viewEndStr.slice(0,10);
 
       log(`Ricarico calendario ${start} → ${end}`);
+      setLoading(true);
 
-      // 1) Prenotazioni dirette
-      const dirRes = await supabase
-        .from("prenotazioni")
-        .select("id, checkin, checkout, nome_ospite, stato, bambini_num, animali, late_checkin")
-        .eq("struttura_id", struttura_id)
-        .lt("checkin", end)
-        .gt("checkout", start);
+      try {
+        // 1) Prenotazioni dirette
+        const dirRes = await supabase
+          .from("prenotazioni")
+          .select("id, checkin, checkout, nome_ospite, stato, bambini_num, animali, late_checkin")
+          .eq("struttura_id", struttura_id)
+          .lt("checkin", end)
+          .gt("checkout", start);
 
-      if (dirRes.error) {
-        log("Errore prenotazioni: " + (dirRes.error.message ?? String(dirRes.error)));
-        return;
+        if (dirRes.error) {
+          log("Errore prenotazioni: " + (dirRes.error.message ?? String(dirRes.error)));
+          return;
+        }
+
+        // 2) Eventi importati (Airbnb iCal) — solo per mostrare blocchi occupati
+        const abRes = await supabase
+          .from("eventi_calendario")
+          .select("id, titolo, inizio, fine, origine, attivo")
+          .eq("struttura_id", struttura_id)
+          .eq("origine", "airbnb_ical")
+          .eq("attivo", true)
+          .lt("inizio", end)
+          .gt("fine", start);
+
+        if (abRes.error) {
+          log("Errore eventi calendario: " + (abRes.error.message ?? String(abRes.error)));
+          return;
+        }
+
+        const events = [
+          ...mapAirbnbToEvents(abRes.data),
+          ...mapPrenotazioniToEvents(dirRes.data),
+        ];
+
+        // Aggiorna in blocco
+        calendar.removeAllEvents();
+        calendar.addEventSource(events);
+
+        log(`Eventi caricati: Airbnb=${abRes.data?.length ?? 0} | Dirette=${dirRes.data?.length ?? 0}`);
+      } finally {
+        setLoading(false);
       }
-
-      // 2) Eventi importati (Airbnb iCal) — solo per mostrare blocchi occupati
-      const abRes = await supabase
-        .from("eventi_calendario")
-        .select("id, titolo, inizio, fine, origine, attivo")
-        .eq("struttura_id", struttura_id)
-        .eq("origine", "airbnb_ical")
-        .eq("attivo", true)
-        .lt("inizio", end)
-        .gt("fine", start);
-
-      if (abRes.error) {
-        log("Errore eventi calendario: " + (abRes.error.message ?? String(abRes.error)));
-        return;
-      }
-
-      const events = [
-        ...mapAirbnbToEvents(abRes.data),
-        ...mapPrenotazioniToEvents(dirRes.data),
-      ];
-
-      // Aggiorna in blocco
-      calendar.removeAllEvents();
-      calendar.addEventSource(events);
-
-      log(`Eventi caricati: Airbnb=${abRes.data?.length ?? 0} | Dirette=${dirRes.data?.length ?? 0}`);
     }
 
     async function refreshUI() {
@@ -265,10 +282,6 @@
 
       await loadStrutture();
       ensureCalendar();
-
-      // dopo aver caricato strutture, carica eventi del range corrente
-      const v = calendar.view;
-      await reloadCalendarEvents(v.activeStart.toISOString(), v.activeEnd.toISOString());
     }
 
     el("btnLogin").onclick = async () => {
@@ -297,12 +310,27 @@
       await reloadCalendarEvents(v.activeStart.toISOString(), v.activeEnd.toISOString());
     };
 
+    el("strutturaSelect").addEventListener("change", async () => {
+      if (!calendar) return;
+      const v = calendar.view;
+      await reloadCalendarEvents(v.activeStart.toISOString(), v.activeEnd.toISOString());
+    });
+
     supabase.auth.onAuthStateChange(async () => {
       await refreshUI();
     });
 
     log("Script caricato.");
     await refreshUI();
+
+    // Carica dati appena il calendario è pronto (evita doppia richiesta iniziale)
+    suppressDatesSet = true;
+    requestAnimationFrame(async () => {
+      if (!calendar) return;
+      const v = calendar.view;
+      suppressDatesSet = false;
+      await reloadCalendarEvents(v.activeStart.toISOString(), v.activeEnd.toISOString());
+    });
   </script>
 </body>
 </html>
