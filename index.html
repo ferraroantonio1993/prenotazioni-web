@@ -22,7 +22,10 @@
     .row { display:flex; gap: 12px; align-items: end; flex-wrap: wrap; }
     .row > div { flex: 1; min-width: 220px; }
     .muted { opacity: .75; font-size: 13px; }
-    #calendar { margin-top: 14px; }
+
+    /* IMPORTANT: altezza minima per evitare calendario "bianco" */
+    #calendar { margin-top: 14px; min-height: 650px; }
+
     #out { white-space: pre-wrap; background:#f7f7f7; padding:10px; border-radius:10px; border:1px solid #eee; min-height: 42px; }
 
     .legend { display:flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
@@ -35,9 +38,7 @@
       --fc-page-bg-color: #ffffff;
       font-size: 13px;
     }
-
     .fc .fc-toolbar-title { font-size: 18px; font-weight: 650; }
-
     .fc .fc-button {
       background: #fff !important;
       border: 1px solid #d1d5db !important;
@@ -46,25 +47,12 @@
       padding: 7px 10px !important;
     }
     .fc .fc-button:disabled { opacity: 0.5; }
-
     .fc .fc-daygrid-day-number { font-size: 12px; opacity: .75; padding: 6px; }
-
     .fc .fc-daygrid-day { background: #fff; }
     .fc .fc-daygrid-day.fc-day-sat,
     .fc .fc-daygrid-day.fc-day-sun { background: #fafafa; }
-
-    .fc .fc-daygrid-day.fc-day-today {
-      outline: 2px solid #111827;
-      outline-offset: -2px;
-    }
-
-    .fc .fc-daygrid-event {
-      border-radius: 8px;
-      padding: 2px 6px;
-      border: 0 !important;
-      box-shadow: none;
-    }
-
+    .fc .fc-daygrid-day.fc-day-today { outline: 2px solid #111827; outline-offset: -2px; }
+    .fc .fc-daygrid-event { border-radius: 8px; padding: 2px 6px; border: 0 !important; box-shadow: none; }
     .fc .fc-daygrid-event .fc-event-title {
       font-weight: 650;
       font-size: 12px;
@@ -72,7 +60,6 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
-
     .fc .fc-event-time { display: none; }
     .fc .cm-sub { font-size: 11px; opacity: .9; font-weight: 500; }
   </style>
@@ -131,7 +118,7 @@
     const SUPABASE_URL = "https://ybzoitxmlkjmfeoodqlq.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inliem9pdHhtbGtqbWZlb29kcWxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg4MTI2MTIsImV4cCI6MjA4NDM4ODYxMn0.3kV-SnYCjvNay2PjZpz-MA6PZFDS-ZeAgufFbk1ZR6M";
 
-    // StorageKey dedicata: evita collisioni con prove precedenti
+    // StorageKey dedicata per evitare collisioni con prove precedenti
     const STORAGE_KEY = "sb-auth-prenotazioni-v1";
 
     const el = (id) => document.getElementById(id);
@@ -145,6 +132,11 @@
         target.textContent = target.textContent ? `${target.textContent}\n${next}` : next;
       }
     };
+
+    // CHECK: FullCalendar caricato?
+    if (!window.FullCalendar) {
+      log("ERRORE: FullCalendar non caricato. Controlla lo script index.global.min.js nel <head>.");
+    }
 
     const setLoading = (isLoading) => {
       const btn = el("btnReload");
@@ -210,7 +202,6 @@
           const titolo = arg.event.title || "";
           const origine = arg.event.extendedProps?.origine || "";
           const stato = arg.event.extendedProps?.stato || "";
-
           const sub = origine === "airbnb_ical" ? "Airbnb" : (origine === "diretta" ? "Diretta" : origine);
           const sub2 = stato ? ` • ${stato}` : "";
 
@@ -240,6 +231,11 @@
       });
 
       calendar.render();
+
+      // Forza ridisegno (quando il contenitore era nascosto)
+      setTimeout(() => {
+        try { calendar.updateSize(); } catch (_) {}
+      }, 50);
     }
 
     async function loadStrutture() {
@@ -351,6 +347,11 @@
 
       await loadStrutture();
       ensureCalendar();
+
+      // Forza resize dopo che la card è visibile
+      setTimeout(() => {
+        try { calendar.updateSize(); } catch (_) {}
+      }, 50);
 
       const v = calendar.view;
       await reloadCalendarEvents(v.activeStart, v.activeEnd);
