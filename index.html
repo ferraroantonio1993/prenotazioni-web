@@ -161,21 +161,34 @@ el("btnLogin").onclick = async () => {
 };
 
 el("btnLogout").onclick = async () => {
-  try {
-    out("Logout...");
+  // 1) UI immediata (così non resta incastrato)
+  out("Logout...");
+  el("appCard").style.display = "none";
+  el("btnLogout").style.display = "none";
+  el("btnLogin").style.display = "inline-block";
+  el("authStatus").textContent = "Non loggato";
 
-    const { error } = await supabase.auth.signOut();
+  // 2) Prova signOut con timeout (per evitare attese infinite)
+  const signOutPromise = supabase.auth.signOut();
+
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error("Timeout signOut")), 4000)
+  );
+
+  try {
+    const { error } = await Promise.race([signOutPromise, timeoutPromise]);
     if (error) {
       return out({ ok: false, where: "signOut", error: error.message ?? error });
     }
-
-    // Forza aggiornamento UI anche se onAuthStateChange non scatta
-    await refreshUI();
     out({ ok: true, msg: "Logout OK" });
   } catch (e) {
-    out({ ok: false, where: "logout_catch", error: String(e) });
+    // Se va in timeout, non è grave: con persistSession:false sei comunque fuori lato UI
+    out({ ok: true, msg: "Logout locale OK (signOut remoto non confermato)", details: String(e) });
+  } finally {
+    await refreshUI();
   }
 };
+
 
 
 el("btnReset").onclick = async () => {
