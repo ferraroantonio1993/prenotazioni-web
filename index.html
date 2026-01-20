@@ -30,12 +30,7 @@
     .chip { display:inline-flex; align-items:center; gap:8px; border:1px solid #ddd; border-radius:999px; padding:6px 10px; font-size:13px; }
     .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
 
-    /* Look "channel manager" */
-    .fc {
-      --fc-border-color: #e5e7eb;
-      --fc-page-bg-color: #ffffff;
-      font-size: 13px;
-    }
+    .fc { --fc-border-color: #e5e7eb; --fc-page-bg-color: #ffffff; font-size: 13px; }
     .fc .fc-toolbar-title { font-size: 18px; font-weight: 650; }
     .fc .fc-button {
       background: #fff !important;
@@ -120,25 +115,24 @@
     const el = (id) => document.getElementById(id);
 
     const log = (msg) => {
-  const s = String(msg);
-  console.log("[APP]", s);
+      const s = String(msg);
+      console.log("[APP]", s);
 
-  const now = new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  const line = `[${now}] ${s}`;
+      const now = new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      const line = `[${now}] ${s}`;
 
-  // Se appCard è visibile scrivi in #out, altrimenti in #authStatus
-  const appVisible = el("appCard") && el("appCard").style.display !== "none";
-  const target = appVisible ? el("out") : el("authStatus");
+      const appVisible = el("appCard") && el("appCard").style.display !== "none";
+      const target = appVisible ? el("out") : el("authStatus");
+      if (target) target.textContent = target.textContent ? `${target.textContent}\n${line}` : line;
+    };
 
-  if (target) {
-    target.textContent = target.textContent ? `${target.textContent}\n${line}` : line;
-  }
-};
+    // Log errori globali (utile quando "sparisce tutto")
+    window.addEventListener("error", (e) => log("JS error: " + (e?.message || "sconosciuto")));
+    window.addEventListener("unhandledrejection", (e) => log("Promise rejection: " + (e?.reason?.message || e?.reason || "sconosciuta")));
 
-
-    if (!window.FullCalendar) {
-      log("ERRORE: FullCalendar non caricato. Controlla lo script index.global.min.js nel <head>.");
-    }
+    // Sanity check librerie
+    if (!window.FullCalendar) log("ERRORE: FullCalendar non caricato (CDN?). Controlla rete/console.");
+    if (!window.supabase) log("ERRORE: Supabase non caricato (CDN?). Controlla rete/console.");
 
     const setLoading = (isLoading) => {
       const btn = el("btnReload");
@@ -156,7 +150,6 @@
         }
       } catch (_) {}
       try { sessionStorage.clear(); } catch (_) {}
-
       try {
         if ("caches" in window) {
           const keys = await caches.keys();
@@ -166,7 +159,7 @@
     };
 
     // Supabase client (GLOBAL)
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    const supabaseClient = window.supabase?.createClient?.(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
@@ -181,7 +174,6 @@
 
     const toYMD = (v) => {
       if (!v) return "";
-      // gestisce "YYYY-MM-DD", "YYYY-MM-DDTHH:mm:ss", ecc.
       return String(v).slice(0, 10);
     };
 
@@ -192,10 +184,48 @@
       };
     };
 
+    function colorForDiretta(stato) {
+      if (stato === "annullata") return "#dc2626";
+      if (stato === "checkin") return "#16a34a";
+      return "#2563eb";
+    }
+
+    function mapPrenotazioniToEvents(rows) {
+      return (rows ?? []).map(r => ({
+        id: "dir_" + r.id,
+        title: (r.nome_ospite && r.nome_ospite.trim()) ? r.nome_ospite.trim() : "Diretta",
+        start: toYMD(r.checkin),
+        end: toYMD(r.checkout), // end esclusivo (checkout = giorno uscita)
+        allDay: true,
+        backgroundColor: colorForDiretta(r.stato),
+        borderColor: "transparent",
+        textColor: "#fff",
+        extendedProps: { origine: "diretta", stato: r.stato ?? "" }
+      })).filter(e => e.start && e.end);
+    }
+
+    function mapAirbnbToEvents(rows) {
+      return (rows ?? []).map(r => ({
+        id: "ab_" + r.id,
+        title: r.titolo ?? "Airbnb",
+        start: toYMD(r.inizio),
+        end: toYMD(r.fine),
+        allDay: true,
+        backgroundColor: "#6b7280",
+        borderColor: "transparent",
+        textColor: "#fff",
+        extendedProps: { origine: r.origine ?? "airbnb_ical", stato: "" }
+      })).filter(e => e.start && e.end);
+    }
+
     function ensureCalendar() {
       if (calendar) return;
 
-      calendar = new FullCalendar.Calendar(el("calendar"), {
+      const calEl = el("calendar");
+      if (!calEl) { log("ERRORE: #calendar non trovato."); return; }
+      if (!window.FullCalendar) { log("ERRORE: FullCalendar assente."); return; }
+
+      calendar = new FullCalendar.Calendar(calEl, {
         initialView: "dayGridMonth",
         height: "auto",
         firstDay: 1,
@@ -221,7 +251,6 @@
           const sub2 = stato ? ` • ${stato}` : "";
 
           const wrap = document.createElement("div");
-
           const line1 = document.createElement("div");
           line1.textContent = titolo;
 
@@ -247,15 +276,18 @@
       });
 
       calendar.render();
+      log("FullCalendar render OK.");
 
-      // Forza ridisegno (quando il contenitore era nascosto)
-      setTimeout(() => {
-        try { calendar.updateSize(); } catch (_) {}
-      }, 50);
+      // Ridisegno quando diventa visibile (display:none -> block)
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          try { calendar.updateSize(); } catch (_) {}
+        });
+      });
     }
 
     async function loadStrutture() {
-      const { data, error } = await supabase.from("strutture").select("id,nome").order("nome");
+      const { data, error } = await supabaseClient.from("strutture").select("id,nome").order("nome");
       if (error) { log("Errore strutture: " + (error.message ?? String(error))); return []; }
 
       const sel = el("strutturaSelect");
@@ -273,48 +305,14 @@
       return rows;
     }
 
-    function colorForDiretta(stato) {
-      if (stato === "annullata") return "#dc2626";
-      if (stato === "checkin") return "#16a34a";
-      return "#2563eb";
-    }
-
-    function mapPrenotazioniToEvents(rows) {
-      return (rows ?? []).map(r => ({
-        id: "dir_" + r.id,
-        title: (r.nome_ospite && r.nome_ospite.trim()) ? r.nome_ospite.trim() : "Diretta",
-        start: toYMD(r.checkin),
-        end: toYMD(r.checkout), // end esclusivo per FullCalendar (corretto se checkout = giorno uscita)
-        allDay: true,
-        backgroundColor: colorForDiretta(r.stato),
-        borderColor: "transparent",
-        textColor: "#fff",
-        extendedProps: { origine: "diretta", stato: r.stato ?? "" }
-      })).filter(e => e.start && e.end);
-    }
-
-    function mapAirbnbToEvents(rows) {
-      return (rows ?? []).map(r => ({
-        id: "ab_" + r.id,
-        title: r.titolo ?? "Airbnb",
-        start: toYMD(r.inizio),
-        end: toYMD(r.fine),
-        allDay: true,
-        backgroundColor: "#6b7280",
-        borderColor: "transparent",
-        textColor: "#fff",
-        extendedProps: { origine: r.origine ?? "airbnb_ical", stato: "" }
-      })).filter(e => e.start && e.end);
-    }
-
     async function reloadCalendarEvents(viewStartDate, viewEndDate) {
       const struttura_id = el("strutturaSelect")?.value;
-      if (!struttura_id || !calendar) return;
+      if (!struttura_id) { log("Seleziona una struttura."); return; }
+      if (!calendar) return;
 
       const start = toYMD(viewStartDate.toISOString());
       const end = toYMD(viewEndDate.toISOString());
 
-      // evita ricarichi identici
       const rangeKey = `${struttura_id}|${start}|${end}`;
       if (rangeKey === lastRangeKey) return;
       lastRangeKey = rangeKey;
@@ -323,21 +321,23 @@
       setLoading(true);
 
       try {
-        const dirQ = supabase
+        // Overlap robusto: checkin < end AND checkout > start
+        // Nota: uso gte/lt per evitare tagli ai bordi (dipende da come salvi checkout/fine)
+        const dirQ = supabaseClient
           .from("prenotazioni")
           .select("id, checkin, checkout, nome_ospite, stato")
           .eq("struttura_id", struttura_id)
           .lt("checkin", end)
-          .gt("checkout", start);
+          .gte("checkout", start);
 
-        const abQ = supabase
+        const abQ = supabaseClient
           .from("eventi_calendario")
           .select("id, titolo, inizio, fine, origine, attivo")
           .eq("struttura_id", struttura_id)
           .eq("origine", "airbnb_ical")
           .eq("attivo", true)
           .lt("inizio", end)
-          .gt("fine", start);
+          .gte("fine", start);
 
         const [dirRes, abRes] = await Promise.all([dirQ, abQ]);
 
@@ -359,7 +359,12 @@
     }
 
     async function refreshUI() {
-      const { data, error } = await supabase.auth.getSession();
+      if (!supabaseClient) {
+        log("ERRORE: client Supabase non creato (libreria non caricata).");
+        return;
+      }
+
+      const { data, error } = await supabaseClient.auth.getSession();
       if (error) log("Errore getSession: " + (error.message ?? String(error)));
 
       const session = data?.session ?? null;
@@ -368,55 +373,65 @@
       el("appCard").style.display = logged ? "block" : "none";
       el("authStatus").textContent = logged ? `Loggato come: ${session.user.email}` : "Non loggato";
 
-      if (!logged) return;
+      // Debug: crea comunque il calendario "vuoto" anche se non loggato
+      // così distingui subito problema di FullCalendar vs login.
+      if (!logged) {
+        log("Non loggato: mostro solo login. (Calendario non caricato eventi)");
+        return;
+      }
 
       const strutture = await loadStrutture();
-      ensureCalendar();
 
-      // se non ci sono strutture, non interrogare eventi
+      // RENDER calendario dopo che appCard è visibile
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          ensureCalendar();
+        });
+      });
+
       if (!strutture.length) {
-        calendar.removeAllEvents();
+        if (calendar) calendar.removeAllEvents();
         log("Impossibile caricare eventi: nessuna struttura disponibile.");
         return;
       }
 
-      setTimeout(() => { try { calendar.updateSize(); } catch (_) {} }, 50);
-
-      const v = calendar.view;
-      await reloadCalendarEvents(v.activeStart, v.activeEnd);
+      // aspetta un tick perché calendar.view esista
+      setTimeout(async () => {
+        try { calendar.updateSize(); } catch (_) {}
+        const v = calendar.view;
+        await reloadCalendarEvents(v.activeStart, v.activeEnd);
+      }, 0);
     }
 
     async function doLogin() {
-  const email = el("email").value.trim();
-  const password = el("password").value;
-  if (!email || !password) { log("Inserisci email e password."); return; }
+      const email = el("email").value.trim();
+      const password = el("password").value;
+      if (!email || !password) { log("Inserisci email e password."); return; }
+      if (!supabaseClient) { log("Supabase non disponibile."); return; }
 
-  log("Click login ricevuto. Provo autenticazione...");
-  try {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) { log("Errore login: " + (error.message ?? String(error))); return; }
-    log("Login OK.");
-    await refreshUI();
-  } catch (e) {
-    log("Eccezione login: " + (e?.message ?? String(e)));
-  }
-}
+      log("Click login ricevuto. Provo autenticazione...");
+      try {
+        const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+        if (error) { log("Errore login: " + (error.message ?? String(error))); return; }
+        log("Login OK.");
+        await refreshUI();
+      } catch (e) {
+        log("Eccezione login: " + (e?.message ?? String(e)));
+      }
+    }
 
-const btn = el("btnLogin");
-btn.addEventListener("click", (e) => { e.preventDefault(); doLogin(); }, { passive: false });
-btn.addEventListener("touchend", (e) => { e.preventDefault(); doLogin(); }, { passive: false });
-
+    // Bind bottoni
+    el("btnLogin").addEventListener("click", (e) => { e.preventDefault(); doLogin(); }, { passive: false });
 
     el("btnReset").onclick = async () => {
-      try { await supabase.auth.signOut(); } catch (_) {}
+      try { await supabaseClient?.auth?.signOut?.(); } catch (_) {}
       await clearSbStorage();
       const base = window.location.origin + window.location.pathname;
       window.location.href = base + "?v=" + Date.now();
     };
 
     el("btnReload").onclick = async () => {
-      if (!calendar) return;
-      // forza reload anche su stesso range
+      if (!calendar) { log("Calendario non inizializzato."); return; }
       lastRangeKey = "";
       const v = calendar.view;
       await reloadCalendarEvents(v.activeStart, v.activeEnd);
@@ -429,11 +444,13 @@ btn.addEventListener("touchend", (e) => { e.preventDefault(); doLogin(); }, { pa
       await reloadCalendarEvents(v.activeStart, v.activeEnd);
     });
 
-    supabase.auth.onAuthStateChange(async () => {
-      // reset range cache quando cambia sessione
-      lastRangeKey = "";
-      await refreshUI();
-    });
+    // Auth listener
+    if (supabaseClient?.auth?.onAuthStateChange) {
+      supabaseClient.auth.onAuthStateChange(async () => {
+        lastRangeKey = "";
+        await refreshUI();
+      });
+    }
 
     log("Script caricato.");
     refreshUI();
