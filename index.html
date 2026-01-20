@@ -115,6 +115,13 @@
       }
       sessionStorage.clear();
     };
+    const hasSbStorage = () => {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith("sb-")) return true;
+      }
+      return false;
+    };
 
     let calendar = null;
 
@@ -265,10 +272,25 @@
     }
 
     async function refreshUI() {
+      let session = null;
       const { data, error } = await supabase.auth.getSession();
-      if (error) log("Errore getSession: " + (error.message ?? String(error)));
+      if (error) {
+        log("Errore getSession: " + (error.message ?? String(error)));
+      } else {
+        session = data?.session ?? null;
+      }
 
-      const session = data?.session ?? null;
+      if (!session && hasSbStorage()) {
+        log("Sessione non valida, provo a rigenerarla...");
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError) {
+          log("Sessione corrotta: pulizia cache locale.");
+          clearSbStorage();
+        } else {
+          session = refreshData?.session ?? null;
+        }
+      }
+
       const logged = !!session;
 
       el("appCard").style.display = logged ? "block" : "none";
