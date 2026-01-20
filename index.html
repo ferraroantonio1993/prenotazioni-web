@@ -5,8 +5,12 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Calendario Prenotazioni</title>
 
-  <!-- FullCalendar -->
+  <!-- FullCalendar (GLOBAL) -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+
+  <!-- Supabase (GLOBAL UMD) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
     body { font-family: system-ui, Arial; max-width: 1100px; margin: 18px auto; padding: 0 12px; }
@@ -15,33 +19,25 @@
     input, select { width: 100%; padding: 10px; margin-top: 6px; border: 1px solid #ddd; border-radius: 10px; }
     button { padding: 10px 14px; margin-top: 12px; cursor: pointer; border: 1px solid #ddd; border-radius: 10px; background: #fff; }
     button[disabled] { cursor: not-allowed; opacity: 0.6; }
-    .row { display:flex; gap: 12px; align-items: end; }
-    .row > div { flex: 1; }
+    .row { display:flex; gap: 12px; align-items: end; flex-wrap: wrap; }
+    .row > div { flex: 1; min-width: 220px; }
     .muted { opacity: .75; font-size: 13px; }
-    #calendar { margin-top: 10px; }
+    #calendar { margin-top: 14px; }
     #out { white-space: pre-wrap; background:#f7f7f7; padding:10px; border-radius:10px; border:1px solid #eee; min-height: 42px; }
 
-    /* Stile eventi (blocchi) più simile a channel manager */
-    .fc .fc-daygrid-event { border-radius: 8px; padding: 2px 6px; }
-    .fc .fc-event-title { font-weight: 600; }
     .legend { display:flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
     .chip { display:inline-flex; align-items:center; gap:8px; border:1px solid #ddd; border-radius:999px; padding:6px 10px; font-size:13px; }
     .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
 
     /* ---- Look "channel manager" ---- */
-    #calendar { margin-top: 14px; }
-    
     .fc {
       --fc-border-color: #e5e7eb;
       --fc-page-bg-color: #ffffff;
       font-size: 13px;
     }
-    
-    .fc .fc-toolbar-title {
-      font-size: 18px;
-      font-weight: 650;
-    }
-    
+
+    .fc .fc-toolbar-title { font-size: 18px; font-weight: 650; }
+
     .fc .fc-button {
       background: #fff !important;
       border: 1px solid #d1d5db !important;
@@ -49,38 +45,26 @@
       border-radius: 10px !important;
       padding: 7px 10px !important;
     }
-    
-    .fc .fc-button:disabled {
-      opacity: 0.5;
-    }
-    
-    .fc .fc-daygrid-day-number {
-      font-size: 12px;
-      opacity: .75;
-      padding: 6px;
-    }
-    
-    .fc .fc-daygrid-day {
-      background: #fff;
-    }
-    
+    .fc .fc-button:disabled { opacity: 0.5; }
+
+    .fc .fc-daygrid-day-number { font-size: 12px; opacity: .75; padding: 6px; }
+
+    .fc .fc-daygrid-day { background: #fff; }
     .fc .fc-daygrid-day.fc-day-sat,
-    .fc .fc-daygrid-day.fc-day-sun {
-      background: #fafafa;
-    }
-    
+    .fc .fc-daygrid-day.fc-day-sun { background: #fafafa; }
+
     .fc .fc-daygrid-day.fc-day-today {
       outline: 2px solid #111827;
       outline-offset: -2px;
     }
-    
+
     .fc .fc-daygrid-event {
       border-radius: 8px;
       padding: 2px 6px;
       border: 0 !important;
       box-shadow: none;
     }
-    
+
     .fc .fc-daygrid-event .fc-event-title {
       font-weight: 650;
       font-size: 12px;
@@ -88,15 +72,9 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
-    
-    .fc .fc-event-time { display: none; } /* all-day: nasconde orario */
-    
-    .fc .cm-sub {
-      font-size: 11px;
-      opacity: .9;
-      font-weight: 500;
-    }
 
+    .fc .fc-event-time { display: none; }
+    .fc .cm-sub { font-size: 11px; opacity: .9; font-weight: 500; }
   </style>
 </head>
 
@@ -116,7 +94,7 @@
           <input id="password" type="password" autocomplete="current-password" />
         </label>
       </div>
-      <div style="flex:0.6">
+      <div style="flex:0.8; min-width:260px;">
         <button id="btnLogin" type="button">Accedi</button>
         <button id="btnReset" type="button" title="Pulisce sessione e ricarica">Reset</button>
       </div>
@@ -131,7 +109,7 @@
           <select id="strutturaSelect"></select>
         </label>
       </div>
-      <div style="flex:0.8">
+      <div style="flex:0.8; min-width:260px;">
         <button id="btnReload" type="button">Ricarica calendario</button>
       </div>
     </div>
@@ -145,20 +123,16 @@
 
     <div id="calendar"></div>
 
-    <div class="muted" style="margin-top:10px;">Debug</div>
+    <div class="muted" style="margin-top:10px;">Stato</div>
     <div id="out" aria-live="polite"></div>
   </div>
 
-  <script type="module">
-    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
-    import "https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js";
-
+  <script>
     const SUPABASE_URL = "https://ybzoitxmlkjmfeoodqlq.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inliem9pdHhtbGtqbWZlb29kcWxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg4MTI2MTIsImV4cCI6MjA4NDM4ODYxMn0.3kV-SnYCjvNay2PjZpz-MA6PZFDS-ZeAgufFbk1ZR6M";
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
-    });
+    // StorageKey dedicata: evita collisioni con prove precedenti
+    const STORAGE_KEY = "sb-auth-prenotazioni-v1";
 
     const el = (id) => document.getElementById(id);
     const log = (msg) => {
@@ -175,34 +149,49 @@
     const setLoading = (isLoading) => {
       const btn = el("btnReload");
       if (btn) btn.disabled = isLoading;
-      el("strutturaSelect").disabled = isLoading;
+      const sel = el("strutturaSelect");
+      if (sel) sel.disabled = isLoading;
     };
 
-    const clearSbStorage = () => {
-      for (let i = localStorage.length - 1; i >= 0; i--) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith("sb-")) localStorage.removeItem(k);
-      }
-      sessionStorage.clear();
+    const clearSbStorage = async () => {
+      // Local/session storage
+      try {
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const k = localStorage.key(i);
+          if (!k) continue;
+          if (k.startsWith("sb-") || k === STORAGE_KEY) localStorage.removeItem(k);
+        }
+      } catch (_) {}
+      try { sessionStorage.clear(); } catch (_) {}
+
+      // Cache Storage (se presente)
+      try {
+        if ("caches" in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map(k => caches.delete(k)));
+        }
+      } catch (_) {}
     };
-    const hasSbStorage = () => {
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith("sb-")) return true;
+
+    // Supabase client (GLOBAL)
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        storageKey: STORAGE_KEY
       }
-      return false;
-    };
+    });
 
     let calendar = null;
 
     function ensureCalendar() {
       if (calendar) return;
 
-      const calendarEl = el("calendar");
-      calendar = new FullCalendar.Calendar(calendarEl, {
+      calendar = new FullCalendar.Calendar(el("calendar"), {
         initialView: "dayGridMonth",
         height: "auto",
-        firstDay: 1, // lunedì
+        firstDay: 1,
         locale: "it",
         nowIndicator: true,
         navLinks: true,
@@ -218,36 +207,35 @@
         },
 
         eventContent: function(arg) {
-  const titolo = arg.event.title || "";
-  const origine = arg.event.extendedProps?.origine || "";
-  const stato = arg.event.extendedProps?.stato || "";
+          const titolo = arg.event.title || "";
+          const origine = arg.event.extendedProps?.origine || "";
+          const stato = arg.event.extendedProps?.stato || "";
 
-  const sub = origine === "airbnb_ical" ? "Airbnb" : (origine === "diretta" ? "Diretta" : origine);
-  const sub2 = stato ? ` • ${stato}` : "";
+          const sub = origine === "airbnb_ical" ? "Airbnb" : (origine === "diretta" ? "Diretta" : origine);
+          const sub2 = stato ? ` • ${stato}` : "";
 
-  const wrap = document.createElement("div");
-  const line1 = document.createElement("div");
-  line1.textContent = titolo;
+          const wrap = document.createElement("div");
+          const line1 = document.createElement("div");
+          line1.textContent = titolo;
 
-  const line2 = document.createElement("div");
-  line2.className = "cm-sub";
-  line2.textContent = sub + sub2;
+          const line2 = document.createElement("div");
+          line2.className = "cm-sub";
+          line2.textContent = sub + sub2;
 
-  wrap.appendChild(line1);
-  wrap.appendChild(line2);
-  return { domNodes: [wrap] };
-},
-eventDidMount: function(info) {
-  // tooltip completo
-  const t = info.event.title;
-  const o = info.event.extendedProps?.origine;
-  const s = info.event.extendedProps?.stato;
-  info.el.title = [t, o, s].filter(Boolean).join(" | ");
-},
+          wrap.appendChild(line1);
+          wrap.appendChild(line2);
+          return { domNodes: [wrap] };
+        },
 
+        eventDidMount: function(info) {
+          const t = info.event.title;
+          const o = info.event.extendedProps?.origine;
+          const s = info.event.extendedProps?.stato;
+          info.el.title = [t, o, s].filter(Boolean).join(" | ");
+        },
 
         datesSet: async function(arg) {
-          await reloadCalendarEvents(arg.startStr, arg.endStr);
+          await reloadCalendarEvents(arg.start, arg.end);
         }
       });
 
@@ -269,10 +257,9 @@ eventDidMount: function(info) {
     }
 
     function colorForDiretta(stato) {
-      // colori rapidi simili a channel manager
       if (stato === "annullata") return "#dc2626";
       if (stato === "checkin") return "#16a34a";
-      return "#2563eb"; // confermata/opzione/etc
+      return "#2563eb";
     }
 
     function mapPrenotazioniToEvents(rows) {
@@ -280,18 +267,12 @@ eventDidMount: function(info) {
         id: "dir_" + r.id,
         title: (r.nome_ospite && r.nome_ospite.trim()) ? r.nome_ospite.trim() : "Diretta",
         start: (r.checkin ?? "").slice(0,10),
-        end: (r.checkout ?? "").slice(0,10), // FullCalendar: end esclusivo (checkout)
+        end: (r.checkout ?? "").slice(0,10),
         allDay: true,
         backgroundColor: colorForDiretta(r.stato),
         borderColor: "transparent",
         textColor: "#fff",
-        extendedProps: {
-          origine: "diretta",
-          stato: r.stato ?? "",
-          bambini: r.bambini_num ?? 0,
-          animali: !!r.animali,
-          late_checkin: !!r.late_checkin
-        }
+        extendedProps: { origine: "diretta", stato: r.stato ?? "" }
       }));
     }
 
@@ -305,38 +286,30 @@ eventDidMount: function(info) {
         backgroundColor: "#6b7280",
         borderColor: "transparent",
         textColor: "#fff",
-        extendedProps: {
-          origine: r.origine ?? "airbnb_ical"
-        }
+        extendedProps: { origine: r.origine ?? "airbnb_ical", stato: "" }
       }));
     }
 
-    async function reloadCalendarEvents(viewStartStr, viewEndStr) {
+    async function reloadCalendarEvents(viewStartDate, viewEndDate) {
       const struttura_id = el("strutturaSelect")?.value;
-      if (!struttura_id) return;
+      if (!struttura_id || !calendar) return;
 
-      // Normalizziamo YYYY-MM-DD
-      const start = viewStartStr.slice(0,10);
-      const end = viewEndStr.slice(0,10);
+      const start = viewStartDate.toISOString().slice(0,10);
+      const end = viewEndDate.toISOString().slice(0,10);
 
       log(`Ricarico calendario ${start} → ${end}`);
       setLoading(true);
 
       try {
-        // 1) Prenotazioni dirette
         const dirRes = await supabase
           .from("prenotazioni")
-          .select("id, checkin, checkout, nome_ospite, stato, bambini_num, animali, late_checkin")
+          .select("id, checkin, checkout, nome_ospite, stato")
           .eq("struttura_id", struttura_id)
           .lt("checkin", end)
           .gt("checkout", start);
 
-        if (dirRes.error) {
-          log("Errore prenotazioni: " + (dirRes.error.message ?? String(dirRes.error)));
-          return;
-        }
+        if (dirRes.error) { log("Errore prenotazioni: " + (dirRes.error.message ?? String(dirRes.error))); return; }
 
-        // 2) Eventi importati (Airbnb iCal) — solo per mostrare blocchi occupati
         const abRes = await supabase
           .from("eventi_calendario")
           .select("id, titolo, inizio, fine, origine, attivo")
@@ -346,17 +319,13 @@ eventDidMount: function(info) {
           .lt("inizio", end)
           .gt("fine", start);
 
-        if (abRes.error) {
-          log("Errore eventi calendario: " + (abRes.error.message ?? String(abRes.error)));
-          return;
-        }
+        if (abRes.error) { log("Errore eventi calendario: " + (abRes.error.message ?? String(abRes.error))); return; }
 
         const events = [
           ...mapAirbnbToEvents(abRes.data),
-          ...mapPrenotazioniToEvents(dirRes.data),
+          ...mapPrenotazioniToEvents(dirRes.data)
         ];
 
-        // Aggiorna in blocco
         calendar.removeAllEvents();
         calendar.addEventSource(events);
 
@@ -367,25 +336,10 @@ eventDidMount: function(info) {
     }
 
     async function refreshUI() {
-      let session = null;
       const { data, error } = await supabase.auth.getSession();
-      if (error) {
-        log("Errore getSession: " + (error.message ?? String(error)));
-      } else {
-        session = data?.session ?? null;
-      }
+      if (error) log("Errore getSession: " + (error.message ?? String(error)));
 
-      if (!session && hasSbStorage()) {
-        log("Sessione non valida, provo a rigenerarla...");
-        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
-        if (refreshError) {
-          log("Sessione corrotta: pulizia cache locale.");
-          clearSbStorage();
-        } else {
-          session = refreshData?.session ?? null;
-        }
-      }
-
+      const session = data?.session ?? null;
       const logged = !!session;
 
       el("appCard").style.display = logged ? "block" : "none";
@@ -397,6 +351,9 @@ eventDidMount: function(info) {
 
       await loadStrutture();
       ensureCalendar();
+
+      const v = calendar.view;
+      await reloadCalendarEvents(v.activeStart, v.activeEnd);
     }
 
     el("btnLogin").onclick = async () => {
@@ -411,10 +368,9 @@ eventDidMount: function(info) {
       await refreshUI();
     };
 
-    // Reset affidabile (dato che logout/refresh ti hanno dato problemi in passato)
     el("btnReset").onclick = async () => {
       try { await supabase.auth.signOut(); } catch (_) {}
-      clearSbStorage();
+      await clearSbStorage();
       const base = window.location.origin + window.location.pathname;
       window.location.href = base + "?v=" + Date.now();
     };
@@ -422,13 +378,13 @@ eventDidMount: function(info) {
     el("btnReload").onclick = async () => {
       if (!calendar) return;
       const v = calendar.view;
-      await reloadCalendarEvents(v.activeStart.toISOString(), v.activeEnd.toISOString());
+      await reloadCalendarEvents(v.activeStart, v.activeEnd);
     };
 
     el("strutturaSelect").addEventListener("change", async () => {
       if (!calendar) return;
       const v = calendar.view;
-      await reloadCalendarEvents(v.activeStart.toISOString(), v.activeEnd.toISOString());
+      await reloadCalendarEvents(v.activeStart, v.activeEnd);
     });
 
     supabase.auth.onAuthStateChange(async () => {
@@ -436,8 +392,7 @@ eventDidMount: function(info) {
     });
 
     log("Script caricato.");
-    await refreshUI();
-
+    refreshUI();
   </script>
 </body>
 </html>
