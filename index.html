@@ -129,20 +129,24 @@
     };
 
     el("btnCheck").onclick = async () => {
-      const struttura_id = el("strutturaSelect").value;
-      const checkin = el("checkin").value;
-      const checkout = el("checkout").value;
+  const struttura_id = el("strutturaSelect").value;
+  const checkin = el("checkin").value;
+  const checkout = el("checkout").value;
 
-      const { data, error } = await supabase.rpc("fn_conflitti_calendario", {
-        p_struttura_id: struttura_id,
-        p_checkin: checkin,
-        p_checkout: checkout,
-        p_escludi_prenotazione_id: null
-      });
+  // Debug: mostra i parametri usati
+  out({ debug: { struttura_id, checkin, checkout } });
 
-      if (error) return out(error);
-      out(data?.[0] ?? data);
-    };
+  const { data, error } = await supabase.rpc("fn_conflitti_calendario", {
+    p_struttura_id: struttura_id,
+    p_checkin: checkin,
+    p_checkout: checkout,
+    p_escludi_prenotazione_id: null
+  });
+
+  if (error) return out(error);
+  out(data?.[0] ?? data);
+  };
+
 
     el("btnSave").onclick = async () => {
       const struttura_id = el("strutturaSelect").value;
