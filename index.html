@@ -24,9 +24,13 @@
     <label>Password <input id="password" type="password" /></label>
     <button id="btnLogin">Accedi</button>
     <button id="btnLogout" style="display:none;">Esci</button>
+    <button id="btnReset">Reset sessione</button>
     <div id="authStatus"></div>
   </div>
 
+  <h4>Output</h4>
+    <pre id="out"></pre>
+  
   <div id="appCard" class="card" style="display:none;">
     <h3>Nuova prenotazione diretta</h3>
 
@@ -72,9 +76,6 @@
 
     <button id="btnCheck">Verifica conflitti</button>
     <button id="btnSave">Salva prenotazione</button>
-
-    <h4>Output</h4>
-    <pre id="out"></pre>
   </div>
 
   <script type="module">
@@ -103,55 +104,110 @@
     }
 
     async function refreshUI() {
-      const { data: { session } } = await supabase.auth.getSession();
-      const logged = !!session;
-      el("btnLogin").style.display = logged ? "none" : "inline-block";
-      el("btnLogout").style.display = logged ? "inline-block" : "none";
-      el("appCard").style.display = logged ? "block" : "none";
-      el("authStatus").textContent = logged ? `Loggato come: ${session.user.email}` : "Non loggato";
+  const { data: { session }, error } = await supabase.auth.getSession();
 
-      if (logged) await loadStrutture();
+  const logged = !!session;
+  el("btnLogin").style.display = logged ? "none" : "inline-block";
+  el("btnLogout").style.display = logged ? "inline-block" : "none";
+  el("appCard").style.display = logged ? "block" : "none";
+  el("authStatus").textContent = logged
+    ? `Loggato come: ${session.user.email}`
+    : "Non loggato";
+
+  if (error) {
+    out({ ok: false, where: "getSession", error });
+  }
+
+  if (logged) {
+    await loadStrutture();
+  }
+}
+
+el("btnLogin").onclick = async () => {
+  try {
+    const email = el("email").value.trim();
+    const password = el("password").value;
+
+    if (!email || !password) {
+      return out({ ok: false, error: "Inserisci email e password." });
     }
 
-    el("btnLogin").onclick = async () => {
-      const email = el("email").value.trim();
-      const password = el("password").value;
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) return out(error);
+    out("Tentativo login...");
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (error) {
       await refreshUI();
-      out("Login OK");
-    };
+      return out(error);
+    }
 
-    el("btnLogout").onclick = async () => {
-      await supabase.auth.signOut();
-      await refreshUI();
-      out("Logout OK");
-    };
-
- 
-el("btnCheck").onclick = async () => {
-  const struttura_id = el("strutturaSelect").value;
-  const checkin = el("checkin").value;
-  const checkout = el("checkout").value;
-
-  if (!struttura_id || !checkin || !checkout) {
-    return out({ ok:false, error:"Seleziona struttura e inserisci check-in/check-out." });
+    await refreshUI();
+    out({ ok: true, msg: "Login OK", user: data.user?.email });
+  } catch (e) {
+    out({ ok: false, error: String(e) });
   }
-      
-  // Debug: mostra i parametri usati
-  out({ debug: { struttura_id, checkin, checkout } });
-
-  const { data, error } = await supabase.rpc("fn_conflitti_calendario", {
-    p_struttura_id: struttura_id,
-    p_checkin: checkin,
-    p_checkout: checkout,
-    p_escludi_prenotazione_id: null
-  });
-
-  if (error) return out(error);
-  out(data?.[0] ?? data);
 };
 
+el("btnLogout").onclick = async () => {
+  try {
+    out("Logout...");
+    const { error } = await supabase.auth.signOut();
+    if (error) return out(error);
+
+    await refreshUI();
+    out({ ok: true, msg: "Logout OK" });
+  } catch (e) {
+    out({ ok: false, error: String(e) });
+  }
+};
+
+el("btnReset").onclick = async () => {
+  try { await supabase.auth.signOut(); } catch (_) {}
+
+  // Rimuove tutte le chiavi Supabase auth dal localStorage
+  const keysToRemove = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith("sb-")) keysToRemove.push(k);
+  }
+  keysToRemove.forEach(k => localStorage.removeItem(k));
+
+  sessionStorage.clear();
+
+  out("Sessione resettata. Ora fai CTRL+F5 e riprova il login.");
+  await refreshUI();
+};
+
+// Aggiorna UI su ogni cambio sessione
+supabase.auth.onAuthStateChange(async () => {
+  await refreshUI();
+});
+ 
+el("btnCheck").onclick = async () => {
+  try {
+    const struttura_id = el("strutturaSelect").value;
+    const checkin = el("checkin").value;
+    const checkout = el("checkout").value;
+
+    if (!struttura_id || !checkin || !checkout) {
+      return out({ ok: false, error: "Seleziona struttura e inserisci check-in/check-out." });
+    }
+
+    // Debug: mostra i parametri usati
+    out({ debug: { struttura_id, checkin, checkout } });
+
+    const { data, error } = await supabase.rpc("fn_conflitti_calendario", {
+      p_struttura_id: struttura_id,
+      p_checkin: checkin,
+      p_checkout: checkout,
+      p_escludi_prenotazione_id: null
+    });
+
+    if (error) return out(error);
+    out(data?.[0] ?? data);
+  } catch (e) {
+    out({ ok: false, error: String(e) });
+  }
+};
 
     el("btnSave").onclick = async () => {
       const struttura_id = el("strutturaSelect").value;
@@ -194,7 +250,7 @@ el("btnCheck").onclick = async () => {
       out({ ok:true, prenotazione: data });
     };
 
-    supabase.auth.onAuthStateChange(() => refreshUI());
+  
     await refreshUI();
   </script>
 </body>
