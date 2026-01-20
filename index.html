@@ -163,6 +163,7 @@ el("btnLogin").onclick = async () => {
 el("btnLogout").onclick = async () => {
   // Logout "pratico": pulisce sessione e ricarica pagina
   out("Uscita in corso...");
+  location.reload();
   try { await supabase.auth.signOut(); } catch (_) {}
 
   const keysToRemove = [];
