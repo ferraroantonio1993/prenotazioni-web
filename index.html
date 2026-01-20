@@ -93,6 +93,17 @@
         <button id="btnReload" type="button">Ricarica calendario</button>
       </div>
     </div>
+		
+    		<div class="row" style="margin-top:10px;">
+  <div>
+    <label>Nuova struttura
+      <input id="newStrutturaNome" type="text" placeholder="Es. Cats&Breakfast 2" />
+    </label>
+  </div>
+  <div style="flex:0.8; min-width:260px;">
+    <button id="btnAddStruttura" type="button">Aggiungi struttura</button>
+  </div>
+</div>
 
     <div class="legend">
       <span class="chip"><span class="dot" style="background:#2563eb"></span>Diretta</span>
@@ -304,7 +315,36 @@
       if (rows.length === 0) log("Nessuna struttura trovata per questo utente.");
       return rows;
     }
+		
+    async function addStruttura() {
+  const nome = el("newStrutturaNome").value.trim();
+  if (!nome) { log("Inserisci un nome struttura."); return; }
 
+  log("Creo struttura: " + nome);
+
+  const { data, error } = await supabaseClient
+    .from("strutture")
+    .insert({ nome })
+    .select("id,nome")
+    .single();
+
+  if (error) { log("Errore creazione struttura: " + (error.message ?? String(error))); return; }
+
+  log("Struttura creata: " + data.nome);
+
+  await loadStrutture();
+  el("strutturaSelect").value = data.id;
+
+  if (calendar) {
+    lastRangeKey = "";
+    const v = calendar.view;
+    await reloadCalendarEvents(v.activeStart, v.activeEnd);
+  }
+
+  el("newStrutturaNome").value = "";
+}
+
+    
     async function reloadCalendarEvents(viewStartDate, viewEndDate) {
       const struttura_id = el("strutturaSelect")?.value;
       if (!struttura_id) { log("Seleziona una struttura."); return; }
@@ -436,6 +476,11 @@
       const v = calendar.view;
       await reloadCalendarEvents(v.activeStart, v.activeEnd);
     };
+		
+    el("btnAddStruttura").addEventListener("click", (e) => {
+  e.preventDefault();
+  addStruttura();
+}, { passive: false });
 
     el("strutturaSelect").addEventListener("change", async () => {
       if (!calendar) return;
