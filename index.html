@@ -426,6 +426,38 @@
     el("btnReset").onclick = async () => {
       try { await supabaseClient?.auth?.signOut?.(); } catch (_) {}
       await clearSbStorage();
+      
+      function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Timeout login (" + ms + "ms)")), ms)
+    )
+  ]);
+}
+
+async function hardResetAuth(reason) {
+  log("Hard reset auth: " + reason);
+
+  try { await supabaseClient.auth.signOut(); } catch (_) {}
+
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (!k) continue;
+      if (k.startsWith("sb-") || k === STORAGE_KEY) localStorage.removeItem(k);
+    }
+  } catch (_) {}
+  try { sessionStorage.clear(); } catch (_) {}
+
+  try {
+    if ("caches" in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
+  } catch (_) {}
+}
+
       const base = window.location.origin + window.location.pathname;
       window.location.href = base + "?v=" + Date.now();
     };
