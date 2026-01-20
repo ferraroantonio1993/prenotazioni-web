@@ -161,17 +161,26 @@ el("btnLogin").onclick = async () => {
 };
 
 el("btnLogout").onclick = async () => {
-  try {
-    out("Logout...");
+  // Logout "pratico": pulisce sessione e ricarica pagina
+  out("Uscita in corso...");
+  try { await supabase.auth.signOut(); } catch (_) {}
 
-    const { error } = await supabase.auth.signOut();
-    if (error) return out({ ok: false, where: "signOut", error: error.message ?? error });
-
-    await refreshUI();
-    out({ ok: true, msg: "Logout OK" });
-  } catch (e) {
-    out({ ok: false, where: "logout_catch", error: String(e) });
+  const keysToRemove = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith("sb-")) keysToRemove.push(k);
   }
+  keysToRemove.forEach(k => localStorage.removeItem(k));
+  sessionStorage.clear();
+
+  // UI immediata
+  el("appCard").style.display = "none";
+  el("btnLogout").style.display = "none";
+  el("btnLogin").style.display = "inline-block";
+  el("authStatus").textContent = "Non loggato";
+
+  out("Uscito. Ricarico la pagina...");
+  location.reload();
 };
 
 
