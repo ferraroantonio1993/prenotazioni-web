@@ -27,6 +27,76 @@
     .legend { display:flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
     .chip { display:inline-flex; align-items:center; gap:8px; border:1px solid #ddd; border-radius:999px; padding:6px 10px; font-size:13px; }
     .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+
+    /* ---- Look "channel manager" ---- */
+    #calendar { margin-top: 14px; }
+    
+    .fc {
+      --fc-border-color: #e5e7eb;
+      --fc-page-bg-color: #ffffff;
+      font-size: 13px;
+    }
+    
+    .fc .fc-toolbar-title {
+      font-size: 18px;
+      font-weight: 650;
+    }
+    
+    .fc .fc-button {
+      background: #fff !important;
+      border: 1px solid #d1d5db !important;
+      color: #111827 !important;
+      border-radius: 10px !important;
+      padding: 7px 10px !important;
+    }
+    
+    .fc .fc-button:disabled {
+      opacity: 0.5;
+    }
+    
+    .fc .fc-daygrid-day-number {
+      font-size: 12px;
+      opacity: .75;
+      padding: 6px;
+    }
+    
+    .fc .fc-daygrid-day {
+      background: #fff;
+    }
+    
+    .fc .fc-daygrid-day.fc-day-sat,
+    .fc .fc-daygrid-day.fc-day-sun {
+      background: #fafafa;
+    }
+    
+    .fc .fc-daygrid-day.fc-day-today {
+      outline: 2px solid #111827;
+      outline-offset: -2px;
+    }
+    
+    .fc .fc-daygrid-event {
+      border-radius: 8px;
+      padding: 2px 6px;
+      border: 0 !important;
+      box-shadow: none;
+    }
+    
+    .fc .fc-daygrid-event .fc-event-title {
+      font-weight: 650;
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .fc .fc-event-time { display: none; } /* all-day: nasconde orario */
+    
+    .fc .cm-sub {
+      font-size: 11px;
+      opacity: .9;
+      font-weight: 500;
+    }
+
   </style>
 </head>
 
@@ -136,7 +206,10 @@
         locale: "it",
         nowIndicator: true,
         navLinks: true,
-        dayMaxEvents: true,
+        fixedWeekCount: false,
+        showNonCurrentDates: false,
+        eventDisplay: "block",
+        dayMaxEvents: 6,
 
         headerToolbar: {
           left: "prev,next today",
@@ -144,12 +217,34 @@
           right: "dayGridMonth,timeGridWeek,timeGridDay"
         },
 
-        eventDidMount: function(info) {
-          // tooltip semplice
-          const t = info.event.title;
-          const o = info.event.extendedProps?.origine;
-          info.el.title = o ? `${t} (${o})` : t;
-        },
+        eventContent: function(arg) {
+  const titolo = arg.event.title || "";
+  const origine = arg.event.extendedProps?.origine || "";
+  const stato = arg.event.extendedProps?.stato || "";
+
+  const sub = origine === "airbnb_ical" ? "Airbnb" : (origine === "diretta" ? "Diretta" : origine);
+  const sub2 = stato ? ` • ${stato}` : "";
+
+  const wrap = document.createElement("div");
+  const line1 = document.createElement("div");
+  line1.textContent = titolo;
+
+  const line2 = document.createElement("div");
+  line2.className = "cm-sub";
+  line2.textContent = sub + sub2;
+
+  wrap.appendChild(line1);
+  wrap.appendChild(line2);
+  return { domNodes: [wrap] };
+},
+eventDidMount: function(info) {
+  // tooltip completo
+  const t = info.event.title;
+  const o = info.event.extendedProps?.origine;
+  const s = info.event.extendedProps?.stato;
+  info.el.title = [t, o, s].filter(Boolean).join(" | ");
+},
+
 
         datesSet: async function(arg) {
           await reloadCalendarEvents(arg.startStr, arg.endStr);
