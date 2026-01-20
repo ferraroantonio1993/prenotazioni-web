@@ -128,11 +128,16 @@
       out("Logout OK");
     };
 
-    el("btnCheck").onclick = async () => {
+ 
+el("btnCheck").onclick = async () => {
   const struttura_id = el("strutturaSelect").value;
   const checkin = el("checkin").value;
   const checkout = el("checkout").value;
 
+  if (!struttura_id || !checkin || !checkout) {
+    return out({ ok:false, error:"Seleziona struttura e inserisci check-in/check-out." });
+  }
+      
   // Debug: mostra i parametri usati
   out({ debug: { struttura_id, checkin, checkout } });
 
@@ -145,7 +150,7 @@
 
   if (error) return out(error);
   out(data?.[0] ?? data);
-  };
+};
 
 
     el("btnSave").onclick = async () => {
