@@ -92,17 +92,7 @@
     });
 
     const el = (id) => document.getElementById(id);
-    const out = (obj) => {
-      try {
-        const target = document.getElementById("out");
-        if (!target) return;
-        target.textContent = (typeof obj === "string") ? obj : JSON.stringify(obj, null, 2);
-      } catch (_) {
-        // mai bloccare i pulsanti per colpa dell'output
-      }
-    };
-
-
+    const out = (obj) => el("out").textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
 
     out("Script caricato. Inserisci email e password e premi Accedi.");
 
