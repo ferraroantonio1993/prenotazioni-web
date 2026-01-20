@@ -92,7 +92,27 @@
     });
 
     const el = (id) => document.getElementById(id);
-    const out = (obj) => el("out").textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+    const out = (obj) => {
+      try {
+        const target = document.getElementById("out");
+        if (!target) return;
+    
+        if (typeof obj === "string") {
+          target.textContent = obj;
+          return;
+        }
+    
+        // Prova JSON stringify; se fallisce, ripiega su stringa semplice
+        try {
+          target.textContent = JSON.stringify(obj, null, 2);
+        } catch (_) {
+          target.textContent = String(obj);
+        }
+      } catch (_) {
+        // Non bloccare mai l'app per colpa dell'output
+      }
+    };
+
 
     out("Script caricato. Inserisci email e password e premi Accedi.");
 
