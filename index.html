@@ -115,6 +115,11 @@
   const { data: { session }, error } = await supabase.auth.getSession();
 
   const logged = !!session;
+      if (!logged) {
+        const sel = el("strutturaSelect");
+        if (sel) sel.innerHTML = "";
+      }
+
   el("btnLogin").style.display = logged ? "none" : "inline-block";
   el("btnLogout").style.display = logged ? "inline-block" : "none";
   el("appCard").style.display = logged ? "block" : "none";
@@ -158,15 +163,20 @@ el("btnLogin").onclick = async () => {
 el("btnLogout").onclick = async () => {
   try {
     out("Logout...");
-    const { error } = await supabase.auth.signOut();
-    if (error) return out(error);
 
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      return out({ ok: false, where: "signOut", error: error.message ?? error });
+    }
+
+    // Forza aggiornamento UI anche se onAuthStateChange non scatta
     await refreshUI();
     out({ ok: true, msg: "Logout OK" });
   } catch (e) {
-    out({ ok: false, error: String(e) });
+    out({ ok: false, where: "logout_catch", error: String(e) });
   }
 };
+
 
 el("btnReset").onclick = async () => {
   try { await supabase.auth.signOut(); } catch (_) {}
