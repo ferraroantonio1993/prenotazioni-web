@@ -92,7 +92,12 @@
     });
 
     const el = (id) => document.getElementById(id);
-    const out = (obj) => el("out").textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+    const out = (obj) => {
+      const target = el("out");
+      if (!target) return; // se #out non esiste/non è ancora nel DOM, non bloccare nulla
+      target.textContent = (typeof obj === "string") ? obj : JSON.stringify(obj, null, 2);
+    };
+
 
     out("Script caricato. Inserisci email e password e premi Accedi.");
 
@@ -163,7 +168,7 @@ el("btnLogin").onclick = async () => {
 el("btnLogout").onclick = async () => {
   // Logout "pratico": pulisce sessione e ricarica pagina
   try { await supabase.auth.signOut(); } catch (_) {}
-
+  out("Logout...");
   const keysToRemove = [];
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
