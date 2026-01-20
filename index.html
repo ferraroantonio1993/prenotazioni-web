@@ -115,90 +115,6 @@
     const el = (id) => document.getElementById(id);
 
     const log = (msg) => {
-        const s = String(msg);
-        console.log("[APP]", s);
-        const now = new Date().toLocaleTimeString("it-IT");
-        const line = `[${now}] ${s}`;
-        const target = el("appCard").style.display !== "none" ? el("out") : el("authStatus");
-        if (target) target.textContent = target.textContent ? `${target.textContent}\n${line}` : line;
-    };
-
-    // --- 1. INIZIALIZZAZIONE CLIENT ---
-    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        auth: {
-            persistSession: true,
-            storageKey: STORAGE_KEY
-        }
-    });
-
-    // --- 2. FUNZIONE RESET (PULIZIA TOTALE) ---
-    const clearSbStorage = async () => {
-        log("Reset in corso...");
-        await supabaseClient.auth.signOut();
-        localStorage.clear(); 
-        sessionStorage.clear();
-        log("Memoria pulita. Ricarico pagina...");
-        setTimeout(() => window.location.reload(), 500);
-    };
-
-    // --- 3. CONTROLLO SESSIONE ALL'AVVIO (PUNTO 3) ---
-    // Questa funzione decide cosa mostrare appena apri la pagina
-    async function checkUserSession() {
-        const { data: { session }, error } = await supabaseClient.auth.getSession();
-        
-        if (session) {
-            log("Sessione valida trovata: " + session.user.email);
-            showApp(true);
-        } else {
-            log("Nessuna sessione attiva. Effettuare il login.");
-            showApp(false);
-        }
-    }
-
-    function showApp(isLoggedIn) {
-        el("authCard").style.display = isLoggedIn ? "none" : "block";
-        el("appCard").style.display = isLoggedIn ? "block" : "none";
-        if (isLoggedIn) {
-            // Qui chiameresti la funzione per caricare le strutture/calendario
-            log("Pronto per caricare i dati.");
-        }
-    }
-
-    // --- 4. GESTIONE LOGIN (PUNTO 2) ---
-    el("btnLogin").onclick = async () => {
-        const email = el("email").value;
-        const password = el("password").value;
-
-        if (!email || !password) return log("Inserire email e password");
-
-        log("Tentativo di accesso...");
-        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-
-        if (error) {
-            log("ERRORE: " + error.message);
-            // Se l'errore riguarda token scaduti, forziamo il reset
-            if (error.message.includes("refresh_token")) clearSbStorage();
-        } else {
-            log("Login ok!");
-            showApp(true);
-        }
-    };
-
-    // Pulsante Reset manuale
-    el("btnReset").onclick = clearSbStorage;
-
-    // --- AVVIO AUTOMATICO ---
-    window.addEventListener('DOMContentLoaded', () => {
-        if (!window.supabase) {
-            log("Errore: Libreria Supabase non caricata!");
-        } else {
-            checkUserSession();
-        }
-    });
-
-    const el = (id) => document.getElementById(id);
-
-    const log = (msg) => {
       const s = String(msg);
       console.log("[APP]", s);
 
@@ -226,26 +142,21 @@
     };
 
     const clearSbStorage = async () => {
-  log("Pulizia sessione in corso...");
-  try {
-    // 1. Logout ufficiale (fondamentale per pulire lo stato interno del client)
-    await supabaseClient.auth.signOut();
-    
-    // 2. Pulizia manuale del localStorage per la tua chiave specifica
-    localStorage.removeItem(STORAGE_KEY);
-    
-    // 3. Rimuovi altre chiavi residue di supabase
-    Object.keys(localStorage).forEach(key => {
-      if (key.startsWith('sb-')) localStorage.removeItem(key);
-    });
-    
-    log("Reset completato. Ricarico...");
-    window.location.reload(); 
-  } catch (err) {
-    log("Errore durante il reset: " + err.message);
-  }
-		};
-
+      try {
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const k = localStorage.key(i);
+          if (!k) continue;
+          if (k.startsWith("sb-") || k === STORAGE_KEY) localStorage.removeItem(k);
+        }
+      } catch (_) {}
+      try { sessionStorage.clear(); } catch (_) {}
+      try {
+        if ("caches" in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map(k => caches.delete(k)));
+        }
+      } catch (_) {}
+    };
 
     // Supabase client (GLOBAL)
     const supabaseClient = window.supabase?.createClient?.(SUPABASE_URL, SUPABASE_ANON_KEY, {
