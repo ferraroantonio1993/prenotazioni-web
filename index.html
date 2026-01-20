@@ -117,7 +117,6 @@
     };
 
     let calendar = null;
-    let suppressDatesSet = false;
 
     function ensureCalendar() {
       if (calendar) return;
@@ -146,7 +145,6 @@
         },
 
         datesSet: async function(arg) {
-          if (suppressDatesSet) return;
           await reloadCalendarEvents(arg.startStr, arg.endStr);
         }
       });
@@ -323,14 +321,6 @@
     log("Script caricato.");
     await refreshUI();
 
-    // Carica dati appena il calendario è pronto (evita doppia richiesta iniziale)
-    suppressDatesSet = true;
-    requestAnimationFrame(async () => {
-      if (!calendar) return;
-      const v = calendar.view;
-      suppressDatesSet = false;
-      await reloadCalendarEvents(v.activeStart.toISOString(), v.activeEnd.toISOString());
-    });
   </script>
 </body>
 </html>
