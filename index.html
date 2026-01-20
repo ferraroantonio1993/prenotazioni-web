@@ -163,7 +163,6 @@ el("btnLogin").onclick = async () => {
 el("btnLogout").onclick = async () => {
   // Logout "pratico": pulisce sessione e ricarica pagina
   try { await supabase.auth.signOut(); } catch (_) {}
-  out("Logout...");
   const keysToRemove = [];
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
