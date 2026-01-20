@@ -29,8 +29,8 @@
   </div>
 
   <h4>Output</h4>
-    <pre id="out"></pre>
-  
+  <pre id="out"></pre>
+
   <div id="appCard" class="card" style="display:none;">
     <h3>Nuova prenotazione diretta</h3>
 
@@ -83,43 +83,51 @@
 
     const SUPABASE_URL = "https://ybzoitxmlkjmfeoodqlq.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inliem9pdHhtbGtqbWZlb29kcWxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg4MTI2MTIsImV4cCI6MjA4NDM4ODYxMn0.3kV-SnYCjvNay2PjZpz-MA6PZFDS-ZeAgufFbk1ZR6M";
+
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: {
-        persistSession: true,     
-        autoRefreshToken: true,  
+        persistSession: true,
+        autoRefreshToken: true,
         detectSessionInUrl: true
       }
     });
 
     const el = (id) => document.getElementById(id);
-    const out = (obj) => {
-      try {
-        const target = document.getElementById("out");
-        if (!target) return;
-    
-        if (typeof obj === "string") {
-          target.textContent = obj;
-          return;
-        }
-    
-        // Prova JSON stringify; se fallisce, ripiega su stringa semplice
-        try {
-          target.textContent = JSON.stringify(obj, null, 2);
-        } catch (_) {
-          target.textContent = String(obj);
-        }
-      } catch (_) {
-        // Non bloccare mai l'app per colpa dell'output
-      }
+
+    // Logger robusto: solo stringhe sullo schermo, console sempre
+    const log = (msg) => {
+      const s = String(msg);
+      console.log("[APP]", s);
+      const target = document.getElementById("out");
+      if (target) target.textContent = s;
     };
 
+    log("Script caricato. Inserisci email e password e premi Accedi.");
 
-    out("Script caricato. Inserisci email e password e premi Accedi.");
+    const clearSbStorage = () => {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith("sb-")) localStorage.removeItem(k);
+      }
+      sessionStorage.clear();
+    };
+
+    const hardReload = () => {
+      // evita cache: URL cambia sempre
+      const base = window.location.origin + window.location.pathname;
+      window.location.href = base + "?v=" + Date.now();
+    };
 
     async function loadStrutture() {
-      // Strutture accessibili (via RLS)
-      const { data, error } = await supabase.from("strutture").select("id,nome").order("nome");
-      if (error) return out(error);
+      const { data, error } = await supabase
+        .from("strutture")
+        .select("id,nome")
+        .order("nome");
+
+      if (error) {
+        log("Errore caricamento strutture: " + (error.message ?? String(error)));
+        return;
+      }
 
       const sel = el("strutturaSelect");
       sel.innerHTML = "";
@@ -132,165 +140,187 @@
     }
 
     async function refreshUI() {
-  const { data: { session }, error } = await supabase.auth.getSession();
+      const { data, error } = await supabase.auth.getSession();
+      const session = data?.session ?? null;
 
-  const logged = !!session;
+      if (error) log("Errore getSession: " + (error.message ?? String(error)));
+
+      const logged = !!session;
+
+      el("btnLogin").style.display = logged ? "none" : "inline-block";
+      el("btnLogout").style.display = logged ? "inline-block" : "none";
+      el("appCard").style.display = logged ? "block" : "none";
+      el("authStatus").textContent = logged
+        ? `Loggato come: ${session.user.email}`
+        : "Non loggato";
+
       if (!logged) {
         const sel = el("strutturaSelect");
         if (sel) sel.innerHTML = "";
+        return;
       }
 
-  el("btnLogin").style.display = logged ? "none" : "inline-block";
-  el("btnLogout").style.display = logged ? "inline-block" : "none";
-  el("appCard").style.display = logged ? "block" : "none";
-  el("authStatus").textContent = logged
-    ? `Loggato come: ${session.user.email}`
-    : "Non loggato";
-
-  if (error) {
-    out({ ok: false, where: "getSession", error });
-  }
-
-  if (logged) {
-    await loadStrutture();
-  }
-}
-
-el("btnLogin").onclick = async () => {
-  try {
-    const email = el("email").value.trim();
-    const password = el("password").value;
-
-    if (!email || !password) {
-      return out({ ok: false, error: "Inserisci email e password." });
+      await loadStrutture();
     }
 
-    out("Tentativo login...");
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    el("btnLogin").onclick = async () => {
+      try {
+        const email = el("email").value.trim();
+        const password = el("password").value;
 
-    if (error) {
-      await refreshUI();
-      return out(error);
-    }
+        if (!email || !password) {
+          log("Inserisci email e password.");
+          return;
+        }
 
-    await refreshUI();
-    out({ ok: true, msg: "Login OK", user: data.user?.email });
-  } catch (e) {
-    out({ ok: false, error: String(e) });
-  }
-};
+        log("Tentativo login...");
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-el("btnLogout").onclick = async () => {
-  // Logout "pratico": pulisce sessione e ricarica pagina
-  try { await supabase.auth.signOut(); } catch (_) {}
-  const keysToRemove = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i);
-    if (k && k.startsWith("sb-")) keysToRemove.push(k);
-  }
-  keysToRemove.forEach(k => localStorage.removeItem(k));
-  sessionStorage.clear();
+        if (error) {
+          log("Errore login: " + (error.message ?? String(error)));
+          await refreshUI();
+          return;
+        }
 
-  // UI immediata
-  el("appCard").style.display = "none";
-  el("btnLogout").style.display = "none";
-  el("btnLogin").style.display = "inline-block";
-  el("authStatus").textContent = "Non loggato";
-
-  location.reload();
-};
-
-
-el("btnReset").onclick = async () => {
-  try { await supabase.auth.signOut(); } catch (_) {}
-
-  const keysToRemove = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i);
-    if (k && k.startsWith("sb-")) keysToRemove.push(k);
-  }
-  keysToRemove.forEach(k => localStorage.removeItem(k));
-  sessionStorage.clear();
-
-  out("Reset completato. Ricarico...");
-  location.reload();
-};
-
-
-// Aggiorna UI su ogni cambio sessione
-supabase.auth.onAuthStateChange(async () => {
-  await refreshUI();
-});
- 
-el("btnCheck").onclick = async () => {
-  try {
-    const struttura_id = el("strutturaSelect").value;
-    const checkin = el("checkin").value;
-    const checkout = el("checkout").value;
-
-    if (!struttura_id || !checkin || !checkout) {
-      return out({ ok: false, error: "Seleziona struttura e inserisci check-in/check-out." });
-    }
-
-    // Debug: mostra i parametri usati
-    out({ debug: { struttura_id, checkin, checkout } });
-
-    const { data, error } = await supabase.rpc("fn_conflitti_calendario", {
-      p_struttura_id: struttura_id,
-      p_checkin: checkin,
-      p_checkout: checkout,
-      p_escludi_prenotazione_id: null
-    });
-
-    if (error) return out(error);
-    out(data?.[0] ?? data);
-  } catch (e) {
-    out({ ok: false, error: String(e) });
-  }
-};
-
-    el("btnSave").onclick = async () => {
-      const struttura_id = el("strutturaSelect").value;
-      const checkin = el("checkin").value;
-      const checkout = el("checkout").value;
-
-      // 1) verifica conflitti
-      const { data: confData, error: confErr } = await supabase.rpc("fn_conflitti_calendario", {
-        p_struttura_id: struttura_id,
-        p_checkin: checkin,
-        p_checkout: checkout,
-        p_escludi_prenotazione_id: null
-      });
-      if (confErr) return out(confErr);
-
-      const conf = confData?.[0];
-      if (conf?.conflitto) {
-        return out({ ok:false, msg:"Conflitto rilevato, salvataggio bloccato", dettagli: conf });
+        await refreshUI();
+        log("Login OK: " + (data.user?.email ?? ""));
+      } catch (e) {
+        log("Errore login (catch): " + String(e));
       }
-
-      // 2) inserisci prenotazione (trigger creerà evento/thread/pulizie)
-      const { data: { user } } = await supabase.auth.getUser();
-      const payload = {
-        struttura_id,
-        checkin,
-        checkout,
-        nome_ospite: el("nomeOspite").value.trim(),
-        stato: el("stato").value,
-        note_operativo: el("note").value,
-        late_checkin: el("lateCheckin").checked,
-        animali: el("animali").checked,
-        bambini_num: parseInt(el("bambiniNum").value || "0", 10),
-        pulizie_richieste: el("pulizieRich").checked,
-        creato_da: user?.id ?? null
-      };
-
-      const { data, error } = await supabase.from("prenotazioni").insert(payload).select().single();
-      if (error) return out(error);
-
-      out({ ok:true, prenotazione: data });
     };
 
-  
+    // ESCl = Reset pulito (evita di perdere tempo su signOut incerto)
+    el("btnLogout").onclick = async () => {
+      try { await supabase.auth.signOut(); } catch (_) {}
+      clearSbStorage();
+
+      // UI immediata
+      el("appCard").style.display = "none";
+      el("btnLogout").style.display = "none";
+      el("btnLogin").style.display = "inline-block";
+      el("authStatus").textContent = "Non loggato";
+
+      log("Uscito. Ricarico...");
+      hardReload();
+    };
+
+    el("btnReset").onclick = async () => {
+      try { await supabase.auth.signOut(); } catch (_) {}
+      clearSbStorage();
+      log("Reset completato. Ricarico...");
+      hardReload();
+    };
+
+    supabase.auth.onAuthStateChange(async () => {
+      await refreshUI();
+    });
+
+    el("btnCheck").onclick = async () => {
+      try {
+        const struttura_id = el("strutturaSelect").value;
+        const checkin = el("checkin").value;
+        const checkout = el("checkout").value;
+
+        if (!struttura_id || !checkin || !checkout) {
+          log("Seleziona struttura e inserisci check-in/check-out.");
+          return;
+        }
+
+        log(`Controllo conflitti: struttura=${struttura_id} checkin=${checkin} checkout=${checkout}`);
+
+        const { data, error } = await supabase.rpc("fn_conflitti_calendario", {
+          p_struttura_id: struttura_id,
+          p_checkin: checkin,
+          p_checkout: checkout,
+          p_escludi_prenotazione_id: null
+        });
+
+        if (error) {
+          log("Errore conflitti: " + (error.message ?? String(error)));
+          return;
+        }
+
+        const conf = data?.[0];
+        if (!conf) {
+          log("Risposta conflitti vuota.");
+          return;
+        }
+
+        if (conf.conflitto) {
+          log("CONFLITTO: " + (conf.conflitti?.[0]?.titolo ?? "occupato"));
+        } else {
+          log("Nessun conflitto.");
+        }
+      } catch (e) {
+        log("Errore verifica conflitti (catch): " + String(e));
+      }
+    };
+
+    el("btnSave").onclick = async () => {
+      try {
+        const struttura_id = el("strutturaSelect").value;
+        const checkin = el("checkin").value;
+        const checkout = el("checkout").value;
+
+        if (!struttura_id || !checkin || !checkout) {
+          log("Seleziona struttura e inserisci check-in/check-out.");
+          return;
+        }
+
+        // 1) verifica conflitti
+        const { data: confData, error: confErr } = await supabase.rpc("fn_conflitti_calendario", {
+          p_struttura_id: struttura_id,
+          p_checkin: checkin,
+          p_checkout: checkout,
+          p_escludi_prenotazione_id: null
+        });
+
+        if (confErr) {
+          log("Errore conflitti (salva): " + (confErr.message ?? String(confErr)));
+          return;
+        }
+
+        const conf = confData?.[0];
+        if (conf?.conflitto) {
+          log("Salvataggio bloccato: conflitto presente.");
+          return;
+        }
+
+        // 2) inserisci prenotazione (il trigger DB blocca comunque in caso di conflitto)
+        const userRes = await supabase.auth.getUser();
+        const user = userRes?.data?.user ?? null;
+
+        const payload = {
+          struttura_id,
+          checkin,
+          checkout,
+          nome_ospite: el("nomeOspite").value.trim(),
+          stato: el("stato").value,
+          note_operativo: el("note").value,
+          late_checkin: el("lateCheckin").checked,
+          animali: el("animali").checked,
+          bambini_num: parseInt(el("bambiniNum").value || "0", 10),
+          pulizie_richieste: el("pulizieRich").checked,
+          creato_da: user?.id ?? null
+        };
+
+        const { data, error } = await supabase
+          .from("prenotazioni")
+          .insert(payload)
+          .select()
+          .single();
+
+        if (error) {
+          log("Errore inserimento prenotazione: " + (error.message ?? String(error)));
+          return;
+        }
+
+        log("Prenotazione salvata. ID: " + (data?.id ?? ""));
+      } catch (e) {
+        log("Errore salva prenotazione (catch): " + String(e));
+      }
+    };
+
     await refreshUI();
   </script>
 </body>
