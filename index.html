@@ -93,10 +93,15 @@
 
     const el = (id) => document.getElementById(id);
     const out = (obj) => {
-      const target = el("out");
-      if (!target) return; // se #out non esiste/non è ancora nel DOM, non bloccare nulla
-      target.textContent = (typeof obj === "string") ? obj : JSON.stringify(obj, null, 2);
+      try {
+        const target = document.getElementById("out");
+        if (!target) return;
+        target.textContent = (typeof obj === "string") ? obj : JSON.stringify(obj, null, 2);
+      } catch (_) {
+        // mai bloccare i pulsanti per colpa dell'output
+      }
     };
+
 
 
     out("Script caricato. Inserisci email e password e premi Accedi.");
