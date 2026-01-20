@@ -163,7 +163,7 @@
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        detectSessionInUrl: false,
+        detectSessionInUrl: true,
         storageKey: STORAGE_KEY
       }
     });
@@ -404,59 +404,21 @@
     }
 
     async function doLogin() {
-  const email = el("email").value.trim();
-  const password = el("password").value;
-  if (!email || !password) { log("Inserisci email e password."); return; }
-  if (!supabaseClient) { log("Supabase non disponibile."); return; }
+      const email = el("email").value.trim();
+      const password = el("password").value;
+      if (!email || !password) { log("Inserisci email e password."); return; }
+      if (!supabaseClient) { log("Supabase non disponibile."); return; }
 
-  log("Click login ricevuto. Provo autenticazione...");
-
-  // Se esiste già una sessione ma la UI non è coerente, ripulisci
-  try {
-    const { data } = await supabaseClient.auth.getSession();
-    if (data?.session) {
-      log("Sessione già presente: provo refresh UI.");
-      await refreshUI();
-      const appVisible = el("appCard") && el("appCard").style.display !== "none";
-      if (!appVisible) await hardResetAuth("sessione presente ma UI non coerente");
-    }
-  } catch (_) {}
-
-  try {
-    const res = await withTimeout(
-      supabaseClient.auth.signInWithPassword({ email, password }),
-      12000
-    );
-
-    if (res.error) {
-      log("Errore login: " + (res.error.message ?? String(res.error)));
-
-      const m = (res.error.message || "").toLowerCase();
-      const looksLikeStaleSession =
-        m.includes("refresh") || m.includes("jwt") || m.includes("token") || m.includes("session");
-
-      if (looksLikeStaleSession) {
-        await hardResetAuth("token/session stale (" + res.error.message + ")");
-        const retry = await supabaseClient.auth.signInWithPassword({ email, password });
-        if (retry.error) {
-          log("Errore login (retry): " + (retry.error.message ?? String(retry.error)));
-          return;
-        }
-        log("Login OK (dopo reset).");
+      log("Click login ricevuto. Provo autenticazione...");
+      try {
+        const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+        if (error) { log("Errore login: " + (error.message ?? String(error))); return; }
+        log("Login OK.");
         await refreshUI();
-        return;
+      } catch (e) {
+        log("Eccezione login: " + (e?.message ?? String(e)));
       }
-
-      return;
     }
-
-    log("Login OK.");
-    await refreshUI();
-  } catch (e) {
-    log("Eccezione login: " + (e?.message ?? String(e)));
-  }
-}
-
 
     // Bind bottoni
     el("btnLogin").addEventListener("click", (e) => { e.preventDefault(); doLogin(); }, { passive: false });
@@ -464,38 +426,6 @@
     el("btnReset").onclick = async () => {
       try { await supabaseClient?.auth?.signOut?.(); } catch (_) {}
       await clearSbStorage();
-      
-      function withTimeout(promise, ms) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Timeout login (" + ms + "ms)")), ms)
-    )
-  ]);
-}
-
-async function hardResetAuth(reason) {
-  log("Hard reset auth: " + reason);
-
-  try { await supabaseClient.auth.signOut(); } catch (_) {}
-
-  try {
-    for (let i = localStorage.length - 1; i >= 0; i--) {
-      const k = localStorage.key(i);
-      if (!k) continue;
-      if (k.startsWith("sb-") || k === STORAGE_KEY) localStorage.removeItem(k);
-    }
-  } catch (_) {}
-  try { sessionStorage.clear(); } catch (_) {}
-
-  try {
-    if ("caches" in window) {
-      const keys = await caches.keys();
-      await Promise.all(keys.map(k => caches.delete(k)));
-    }
-  } catch (_) {}
-}
-
       const base = window.location.origin + window.location.pathname;
       window.location.href = base + "?v=" + Date.now();
     };
