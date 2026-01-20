@@ -3,106 +3,99 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Prenotazioni Dirette</title>
+  <title>Calendario Prenotazioni</title>
+
+  <!-- FullCalendar -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css">
+
   <style>
-    body { font-family: system-ui, Arial; max-width: 860px; margin: 24px auto; padding: 0 12px; }
-    .card { border: 1px solid #ddd; border-radius: 10px; padding: 16px; margin: 12px 0; }
+    body { font-family: system-ui, Arial; max-width: 1100px; margin: 18px auto; padding: 0 12px; }
+    .card { border: 1px solid #ddd; border-radius: 12px; padding: 14px; margin: 12px 0; }
     label { display:block; margin-top: 10px; }
-    input, select, textarea { width: 100%; padding: 8px; margin-top: 6px; }
-    button { padding: 10px 14px; margin-top: 12px; cursor: pointer; }
-    pre { background: #f7f7f7; padding: 10px; overflow:auto; }
-    .row { display:flex; gap: 12px; }
+    input, select { width: 100%; padding: 10px; margin-top: 6px; border: 1px solid #ddd; border-radius: 10px; }
+    button { padding: 10px 14px; margin-top: 12px; cursor: pointer; border: 1px solid #ddd; border-radius: 10px; background: #fff; }
+    .row { display:flex; gap: 12px; align-items: end; }
     .row > div { flex: 1; }
+    .muted { opacity: .75; font-size: 13px; }
+    #calendar { margin-top: 10px; }
+    #out { white-space: pre-wrap; background:#f7f7f7; padding:10px; border-radius:10px; border:1px solid #eee; }
+
+    /* Stile eventi (blocchi) più simile a channel manager */
+    .fc .fc-daygrid-event { border-radius: 8px; padding: 2px 6px; }
+    .fc .fc-event-title { font-weight: 600; }
+    .legend { display:flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+    .chip { display:inline-flex; align-items:center; gap:8px; border:1px solid #ddd; border-radius:999px; padding:6px 10px; font-size:13px; }
+    .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
   </style>
 </head>
+
 <body>
-  <h2>Prenotazioni Dirette (test)</h2>
+  <h2>Calendario Prenotazioni</h2>
 
   <div id="authCard" class="card">
     <h3>Login</h3>
-    <label>Email <input id="email" type="email" /></label>
-    <label>Password <input id="password" type="password" /></label>
-    <button id="btnLogin">Accedi</button>
-    <button id="btnLogout" style="display:none;">Esci</button>
-    <button id="btnReset">Reset sessione</button>
-    <div id="authStatus"></div>
-  </div>
-
-  <h4>Output</h4>
-  <pre id="out"></pre>
-
-  <div id="appCard" class="card" style="display:none;">
-    <h3>Nuova prenotazione diretta</h3>
-
-    <label>Struttura
-      <select id="strutturaSelect"></select>
-    </label>
-
     <div class="row">
       <div>
-        <label>Check-in <input id="checkin" type="date" /></label>
-      </div>
-      <div>
-        <label>Check-out <input id="checkout" type="date" /></label>
-      </div>
-    </div>
-
-    <label>Nome ospite <input id="nomeOspite" type="text" /></label>
-
-    <div class="row">
-      <div>
-        <label>Bambini (numero) <input id="bambiniNum" type="number" min="0" value="0" /></label>
-      </div>
-      <div>
-        <label>Stato
-          <select id="stato">
-            <option value="opzione">opzione</option>
-            <option value="confermata" selected>confermata</option>
-            <option value="annullata">annullata</option>
-            <option value="checkin">checkin</option>
-            <option value="checkout">checkout</option>
-          </select>
+        <label>Email
+          <input id="email" type="email" autocomplete="username" />
         </label>
       </div>
+      <div>
+        <label>Password
+          <input id="password" type="password" autocomplete="current-password" />
+        </label>
+      </div>
+      <div style="flex:0.6">
+        <button id="btnLogin">Accedi</button>
+        <button id="btnReset" title="Pulisce sessione e ricarica">Reset</button>
+      </div>
+    </div>
+    <div id="authStatus" class="muted"></div>
+  </div>
+
+  <div id="appCard" class="card" style="display:none;">
+    <div class="row">
+      <div>
+        <label>Struttura
+          <select id="strutturaSelect"></select>
+        </label>
+      </div>
+      <div style="flex:0.8">
+        <button id="btnReload">Ricarica calendario</button>
+      </div>
     </div>
 
-    <label><input id="lateCheckin" type="checkbox" /> Late check-in</label>
-    <label><input id="animali" type="checkbox" /> Animali</label>
-    <label><input id="pulizieRich" type="checkbox" checked /> Pulizie richieste</label>
+    <div class="legend">
+      <span class="chip"><span class="dot" style="background:#2563eb"></span>Diretta</span>
+      <span class="chip"><span class="dot" style="background:#6b7280"></span>Airbnb (iCal)</span>
+      <span class="chip"><span class="dot" style="background:#16a34a"></span>Diretta (checkin)</span>
+      <span class="chip"><span class="dot" style="background:#dc2626"></span>Diretta (annullata)</span>
+    </div>
 
-    <label>Note operative
-      <textarea id="note" rows="3"></textarea>
-    </label>
+    <div id="calendar"></div>
 
-    <button id="btnCheck">Verifica conflitti</button>
-    <button id="btnSave">Salva prenotazione</button>
+    <div class="muted" style="margin-top:10px;">Debug</div>
+    <div id="out"></div>
   </div>
 
   <script type="module">
     import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+    import "https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js";
 
     const SUPABASE_URL = "https://ybzoitxmlkjmfeoodqlq.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inliem9pdHhtbGtqbWZlb29kcWxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg4MTI2MTIsImV4cCI6MjA4NDM4ODYxMn0.3kV-SnYCjvNay2PjZpz-MA6PZFDS-ZeAgufFbk1ZR6M";
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true
-      }
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
     });
 
     const el = (id) => document.getElementById(id);
-
-    // Logger robusto: solo stringhe sullo schermo, console sempre
     const log = (msg) => {
       const s = String(msg);
       console.log("[APP]", s);
-      const target = document.getElementById("out");
+      const target = el("out");
       if (target) target.textContent = s;
     };
-
-    log("Script caricato. Inserisci email e password e premi Accedi.");
 
     const clearSbStorage = () => {
       for (let i = localStorage.length - 1; i >= 0; i--) {
@@ -112,215 +105,203 @@
       sessionStorage.clear();
     };
 
-    const hardReload = () => {
-      // evita cache: URL cambia sempre
-      const base = window.location.origin + window.location.pathname;
-      window.location.href = base + "?v=" + Date.now();
-    };
+    let calendar = null;
+
+    function ensureCalendar() {
+      if (calendar) return;
+
+      const calendarEl = el("calendar");
+      calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: "dayGridMonth",
+        height: "auto",
+        firstDay: 1, // lunedì
+        locale: "it",
+        nowIndicator: true,
+        navLinks: true,
+        dayMaxEvents: true,
+
+        headerToolbar: {
+          left: "prev,next today",
+          center: "title",
+          right: "dayGridMonth,timeGridWeek,timeGridDay"
+        },
+
+        eventDidMount: function(info) {
+          // tooltip semplice
+          const t = info.event.title;
+          const o = info.event.extendedProps?.origine;
+          info.el.title = o ? `${t} (${o})` : t;
+        },
+
+        datesSet: async function(arg) {
+          // ogni cambio mese/settimana ricarica
+          await reloadCalendarEvents(arg.startStr, arg.endStr);
+        }
+      });
+
+      calendar.render();
+    }
 
     async function loadStrutture() {
-      const { data, error } = await supabase
-        .from("strutture")
-        .select("id,nome")
-        .order("nome");
-
-      if (error) {
-        log("Errore caricamento strutture: " + (error.message ?? String(error)));
-        return;
-      }
+      const { data, error } = await supabase.from("strutture").select("id,nome").order("nome");
+      if (error) { log("Errore strutture: " + (error.message ?? String(error))); return; }
 
       const sel = el("strutturaSelect");
       sel.innerHTML = "";
       for (const s of (data ?? [])) {
         const opt = document.createElement("option");
         opt.value = s.id;
-        opt.textContent = `${s.nome} (${s.id.slice(0,8)}…)`;
+        opt.textContent = s.nome;
         sel.appendChild(opt);
       }
     }
 
+    function colorForDiretta(stato) {
+      // colori rapidi simili a channel manager
+      if (stato === "annullata") return "#dc2626";
+      if (stato === "checkin") return "#16a34a";
+      return "#2563eb"; // confermata/opzione/etc
+    }
+
+    function mapPrenotazioniToEvents(rows) {
+      return (rows ?? []).map(r => ({
+        id: "dir_" + r.id,
+        title: (r.nome_ospite && r.nome_ospite.trim()) ? r.nome_ospite.trim() : "Diretta",
+        start: (r.checkin ?? "").slice(0,10),
+        end: (r.checkout ?? "").slice(0,10), // FullCalendar: end esclusivo (checkout)
+        allDay: true,
+        backgroundColor: colorForDiretta(r.stato),
+        borderColor: "transparent",
+        textColor: "#fff",
+        extendedProps: {
+          origine: "diretta",
+          stato: r.stato ?? "",
+          bambini: r.bambini_num ?? 0,
+          animali: !!r.animali,
+          late_checkin: !!r.late_checkin
+        }
+      }));
+    }
+
+    function mapAirbnbToEvents(rows) {
+      return (rows ?? []).map(r => ({
+        id: "ab_" + r.id,
+        title: r.titolo ?? "Airbnb",
+        start: (r.inizio ?? "").slice(0,10),
+        end: (r.fine ?? "").slice(0,10),
+        allDay: true,
+        backgroundColor: "#6b7280",
+        borderColor: "transparent",
+        textColor: "#fff",
+        extendedProps: {
+          origine: r.origine ?? "airbnb_ical"
+        }
+      }));
+    }
+
+    async function reloadCalendarEvents(viewStartStr, viewEndStr) {
+      const struttura_id = el("strutturaSelect")?.value;
+      if (!struttura_id) return;
+
+      // Normalizziamo YYYY-MM-DD
+      const start = viewStartStr.slice(0,10);
+      const end = viewEndStr.slice(0,10);
+
+      log(`Ricarico calendario ${start} → ${end}`);
+
+      // 1) Prenotazioni dirette
+      const dirRes = await supabase
+        .from("prenotazioni")
+        .select("id, checkin, checkout, nome_ospite, stato, bambini_num, animali, late_checkin")
+        .eq("struttura_id", struttura_id)
+        .lt("checkin", end)
+        .gt("checkout", start);
+
+      if (dirRes.error) {
+        log("Errore prenotazioni: " + (dirRes.error.message ?? String(dirRes.error)));
+        return;
+      }
+
+      // 2) Eventi importati (Airbnb iCal) — solo per mostrare blocchi occupati
+      const abRes = await supabase
+        .from("eventi_calendario")
+        .select("id, titolo, inizio, fine, origine, attivo")
+        .eq("struttura_id", struttura_id)
+        .eq("origine", "airbnb_ical")
+        .eq("attivo", true)
+        .lt("inizio", end)
+        .gt("fine", start);
+
+      if (abRes.error) {
+        log("Errore eventi calendario: " + (abRes.error.message ?? String(abRes.error)));
+        return;
+      }
+
+      const events = [
+        ...mapAirbnbToEvents(abRes.data),
+        ...mapPrenotazioniToEvents(dirRes.data),
+      ];
+
+      // Aggiorna in blocco
+      calendar.removeAllEvents();
+      calendar.addEventSource(events);
+
+      log(`Eventi caricati: Airbnb=${abRes.data?.length ?? 0} | Dirette=${dirRes.data?.length ?? 0}`);
+    }
+
     async function refreshUI() {
       const { data, error } = await supabase.auth.getSession();
-      const session = data?.session ?? null;
-
       if (error) log("Errore getSession: " + (error.message ?? String(error)));
 
+      const session = data?.session ?? null;
       const logged = !!session;
 
-      el("btnLogin").style.display = logged ? "none" : "inline-block";
-      el("btnLogout").style.display = logged ? "inline-block" : "none";
       el("appCard").style.display = logged ? "block" : "none";
       el("authStatus").textContent = logged
         ? `Loggato come: ${session.user.email}`
         : "Non loggato";
 
-      if (!logged) {
-        const sel = el("strutturaSelect");
-        if (sel) sel.innerHTML = "";
-        return;
-      }
+      if (!logged) return;
 
       await loadStrutture();
+      ensureCalendar();
+
+      // dopo aver caricato strutture, carica eventi del range corrente
+      const v = calendar.view;
+      await reloadCalendarEvents(v.activeStart.toISOString(), v.activeEnd.toISOString());
     }
 
     el("btnLogin").onclick = async () => {
-      try {
-        const email = el("email").value.trim();
-        const password = el("password").value;
+      const email = el("email").value.trim();
+      const password = el("password").value;
+      if (!email || !password) { log("Inserisci email e password."); return; }
 
-        if (!email || !password) {
-          log("Inserisci email e password.");
-          return;
-        }
+      log("Login...");
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) { log("Errore login: " + (error.message ?? String(error))); return; }
 
-        log("Tentativo login...");
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-
-        if (error) {
-          log("Errore login: " + (error.message ?? String(error)));
-          await refreshUI();
-          return;
-        }
-
-        await refreshUI();
-        log("Login OK: " + (data.user?.email ?? ""));
-      } catch (e) {
-        log("Errore login (catch): " + String(e));
-      }
+      await refreshUI();
     };
 
-    // ESCl = Reset pulito (evita di perdere tempo su signOut incerto)
-    el("btnLogout").onclick = async () => {
-      try { await supabase.auth.signOut(); } catch (_) {}
-      clearSbStorage();
-
-      // UI immediata
-      el("appCard").style.display = "none";
-      el("btnLogout").style.display = "none";
-      el("btnLogin").style.display = "inline-block";
-      el("authStatus").textContent = "Non loggato";
-
-      log("Uscito. Ricarico...");
-      hardReload();
-    };
-
+    // Reset affidabile (dato che logout/refresh ti hanno dato problemi in passato)
     el("btnReset").onclick = async () => {
       try { await supabase.auth.signOut(); } catch (_) {}
       clearSbStorage();
-      log("Reset completato. Ricarico...");
-      hardReload();
+      const base = window.location.origin + window.location.pathname;
+      window.location.href = base + "?v=" + Date.now();
+    };
+
+    el("btnReload").onclick = async () => {
+      if (!calendar) return;
+      const v = calendar.view;
+      await reloadCalendarEvents(v.activeStart.toISOString(), v.activeEnd.toISOString());
     };
 
     supabase.auth.onAuthStateChange(async () => {
       await refreshUI();
     });
 
-    el("btnCheck").onclick = async () => {
-      try {
-        const struttura_id = el("strutturaSelect").value;
-        const checkin = el("checkin").value;
-        const checkout = el("checkout").value;
-
-        if (!struttura_id || !checkin || !checkout) {
-          log("Seleziona struttura e inserisci check-in/check-out.");
-          return;
-        }
-
-        log(`Controllo conflitti: struttura=${struttura_id} checkin=${checkin} checkout=${checkout}`);
-
-        const { data, error } = await supabase.rpc("fn_conflitti_calendario", {
-          p_struttura_id: struttura_id,
-          p_checkin: checkin,
-          p_checkout: checkout,
-          p_escludi_prenotazione_id: null
-        });
-
-        if (error) {
-          log("Errore conflitti: " + (error.message ?? String(error)));
-          return;
-        }
-
-        const conf = data?.[0];
-        if (!conf) {
-          log("Risposta conflitti vuota.");
-          return;
-        }
-
-        if (conf.conflitto) {
-          log("CONFLITTO: " + (conf.conflitti?.[0]?.titolo ?? "occupato"));
-        } else {
-          log("Nessun conflitto.");
-        }
-      } catch (e) {
-        log("Errore verifica conflitti (catch): " + String(e));
-      }
-    };
-
-    el("btnSave").onclick = async () => {
-      try {
-        const struttura_id = el("strutturaSelect").value;
-        const checkin = el("checkin").value;
-        const checkout = el("checkout").value;
-
-        if (!struttura_id || !checkin || !checkout) {
-          log("Seleziona struttura e inserisci check-in/check-out.");
-          return;
-        }
-
-        // 1) verifica conflitti
-        const { data: confData, error: confErr } = await supabase.rpc("fn_conflitti_calendario", {
-          p_struttura_id: struttura_id,
-          p_checkin: checkin,
-          p_checkout: checkout,
-          p_escludi_prenotazione_id: null
-        });
-
-        if (confErr) {
-          log("Errore conflitti (salva): " + (confErr.message ?? String(confErr)));
-          return;
-        }
-
-        const conf = confData?.[0];
-        if (conf?.conflitto) {
-          log("Salvataggio bloccato: conflitto presente.");
-          return;
-        }
-
-        // 2) inserisci prenotazione (il trigger DB blocca comunque in caso di conflitto)
-        const userRes = await supabase.auth.getUser();
-        const user = userRes?.data?.user ?? null;
-
-        const payload = {
-          struttura_id,
-          checkin,
-          checkout,
-          nome_ospite: el("nomeOspite").value.trim(),
-          stato: el("stato").value,
-          note_operativo: el("note").value,
-          late_checkin: el("lateCheckin").checked,
-          animali: el("animali").checked,
-          bambini_num: parseInt(el("bambiniNum").value || "0", 10),
-          pulizie_richieste: el("pulizieRich").checked,
-          creato_da: user?.id ?? null
-        };
-
-        const { data, error } = await supabase
-          .from("prenotazioni")
-          .insert(payload)
-          .select()
-          .single();
-
-        if (error) {
-          log("Errore inserimento prenotazione: " + (error.message ?? String(error)));
-          return;
-        }
-
-        log("Prenotazione salvata. ID: " + (data?.id ?? ""));
-      } catch (e) {
-        log("Errore salva prenotazione (catch): " + String(e));
-      }
-    };
-
+    log("Script caricato.");
     await refreshUI();
   </script>
 </body>
