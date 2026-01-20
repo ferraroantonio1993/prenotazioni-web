@@ -12,10 +12,43 @@
     body { font-family: system-ui, Arial; max-width: 1100px; margin: 18px auto; padding: 0 12px; }
     .card { border: 1px solid #ddd; border-radius: 12px; padding: 14px; margin: 12px 0; }
     label { display:block; margin-top: 10px; }
-    input, select { width: 100%; padding: 10px; margin-top: 6px; border: 1px solid #ddd; border-radius: 10px; }
+    input, select { width: 100%; box-sizing: border-box; padding: 10px; margin-top: 6px; border: 1px solid #ddd; border-radius: 10px; }
     button { padding: 10px 14px; margin-top: 12px; cursor: pointer; border: 1px solid #ddd; border-radius: 10px; background: #fff; }
     .row { display:flex; gap: 12px; align-items: end; }
     .row > div { flex: 1; }
+    /* Layout login responsive: non sovrappone mai */
+    .row.auth {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 12px;
+      align-items: end;
+    }
+    
+    @media (max-width: 820px) {
+      .row.auth {
+        grid-template-columns: 1fr;
+      }
+      .row.auth button {
+        width: 100%;
+      }
+    }
+
+    .row.auth .authActions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+    
+    @media (max-width: 820px) {
+      .row.auth .authActions {
+        justify-content: stretch;
+      }
+      .row.auth .authActions button {
+        width: 100%;
+      }
+    }
+
     .muted { opacity: .75; font-size: 13px; }
     #calendar { margin-top: 10px; }
     #out { white-space: pre-wrap; background:#f7f7f7; padding:10px; border-radius:10px; border:1px solid #eee; }
@@ -34,7 +67,7 @@
 
   <div id="authCard" class="card">
     <h3>Login</h3>
-    <div class="row">
+    <div class="row auth">
       <div>
         <label>Email
           <input id="email" type="email" autocomplete="username" />
@@ -45,7 +78,7 @@
           <input id="password" type="password" autocomplete="current-password" />
         </label>
       </div>
-      <div style="flex:0.6">
+      <div class="authActions">
         <button id="btnLogin">Accedi</button>
         <button id="btnReset" title="Pulisce sessione e ricarica">Reset</button>
       </div>
