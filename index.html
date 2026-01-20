@@ -120,15 +120,21 @@
     const el = (id) => document.getElementById(id);
 
     const log = (msg) => {
-      const s = String(msg);
-      console.log("[APP]", s);
-      const target = el("out");
-      if (target) {
-        const now = new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-        const next = `[${now}] ${s}`;
-        target.textContent = target.textContent ? `${target.textContent}\n${next}` : next;
-      }
-    };
+  const s = String(msg);
+  console.log("[APP]", s);
+
+  const now = new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const line = `[${now}] ${s}`;
+
+  // Se appCard è visibile scrivi in #out, altrimenti in #authStatus
+  const appVisible = el("appCard") && el("appCard").style.display !== "none";
+  const target = appVisible ? el("out") : el("authStatus");
+
+  if (target) {
+    target.textContent = target.textContent ? `${target.textContent}\n${line}` : line;
+  }
+};
+
 
     if (!window.FullCalendar) {
       log("ERRORE: FullCalendar non caricato. Controlla lo script index.global.min.js nel <head>.");
@@ -380,17 +386,26 @@
       await reloadCalendarEvents(v.activeStart, v.activeEnd);
     }
 
-    el("btnLogin").onclick = async () => {
-      const email = el("email").value.trim();
-      const password = el("password").value;
-      if (!email || !password) { log("Inserisci email e password."); return; }
+    async function doLogin() {
+  const email = el("email").value.trim();
+  const password = el("password").value;
+  if (!email || !password) { log("Inserisci email e password."); return; }
 
-      log("Login...");
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) { log("Errore login: " + (error.message ?? String(error))); return; }
+  log("Click login ricevuto. Provo autenticazione...");
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) { log("Errore login: " + (error.message ?? String(error))); return; }
+    log("Login OK.");
+    await refreshUI();
+  } catch (e) {
+    log("Eccezione login: " + (e?.message ?? String(e)));
+  }
+}
 
-      await refreshUI();
-    };
+const btn = el("btnLogin");
+btn.addEventListener("click", (e) => { e.preventDefault(); doLogin(); }, { passive: false });
+btn.addEventListener("touchend", (e) => { e.preventDefault(); doLogin(); }, { passive: false });
+
 
     el("btnReset").onclick = async () => {
       try { await supabase.auth.signOut(); } catch (_) {}
