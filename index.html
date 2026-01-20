@@ -85,9 +85,9 @@
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inliem9pdHhtbGtqbWZlb29kcWxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg4MTI2MTIsImV4cCI6MjA4NDM4ODYxMn0.3kV-SnYCjvNay2PjZpz-MA6PZFDS-ZeAgufFbk1ZR6M";
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: {
-        persistSession: false,     // evita stati incastrati
-        autoRefreshToken: false,   // per questa demo va bene
-        detectSessionInUrl: false
+        persistSession: true,     
+        autoRefreshToken: true,  
+        detectSessionInUrl: true
       }
     });
 
@@ -161,52 +161,35 @@ el("btnLogin").onclick = async () => {
 };
 
 el("btnLogout").onclick = async () => {
-  // 1) UI immediata (così non resta incastrato)
-  out("Logout...");
-  el("appCard").style.display = "none";
-  el("btnLogout").style.display = "none";
-  el("btnLogin").style.display = "inline-block";
-  el("authStatus").textContent = "Non loggato";
-
-  // 2) Prova signOut con timeout (per evitare attese infinite)
-  const signOutPromise = supabase.auth.signOut();
-
-  const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("Timeout signOut")), 4000)
-  );
-
   try {
-    const { error } = await Promise.race([signOutPromise, timeoutPromise]);
-    if (error) {
-      return out({ ok: false, where: "signOut", error: error.message ?? error });
-    }
+    out("Logout...");
+
+    const { error } = await supabase.auth.signOut();
+    if (error) return out({ ok: false, where: "signOut", error: error.message ?? error });
+
+    await refreshUI();
     out({ ok: true, msg: "Logout OK" });
   } catch (e) {
-    // Se va in timeout, non è grave: con persistSession:false sei comunque fuori lato UI
-    out({ ok: true, msg: "Logout locale OK (signOut remoto non confermato)", details: String(e) });
-  } finally {
-    await refreshUI();
+    out({ ok: false, where: "logout_catch", error: String(e) });
   }
 };
-
 
 
 el("btnReset").onclick = async () => {
   try { await supabase.auth.signOut(); } catch (_) {}
 
-  // Rimuove tutte le chiavi Supabase auth dal localStorage
   const keysToRemove = [];
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
     if (k && k.startsWith("sb-")) keysToRemove.push(k);
   }
   keysToRemove.forEach(k => localStorage.removeItem(k));
-
   sessionStorage.clear();
 
-  out("Sessione resettata. Ora fai CTRL+F5 e riprova il login.");
-  await refreshUI();
+  out("Reset completato. Ricarico...");
+  location.reload();
 };
+
 
 // Aggiorna UI su ogni cambio sessione
 supabase.auth.onAuthStateChange(async () => {
