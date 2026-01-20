@@ -3,457 +3,92 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Calendario Prenotazioni</title>
+  <title>Login Supabase (essenziale)</title>
 
-  <!-- FullCalendar (GLOBAL) -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css">
-  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
-
-  <!-- Supabase (GLOBAL UMD) -->
+  <!-- Supabase UMD -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
-    body { font-family: system-ui, Arial; max-width: 1100px; margin: 18px auto; padding: 0 12px; }
-    .card { border: 1px solid #ddd; border-radius: 12px; padding: 14px; margin: 12px 0; }
+    body { font-family: system-ui, Arial; max-width: 520px; margin: 24px auto; padding: 0 12px; }
+    .card { border: 1px solid #ddd; border-radius: 12px; padding: 14px; }
     label { display:block; margin-top: 10px; }
-    input, select { width: 100%; padding: 10px; margin-top: 6px; border: 1px solid #ddd; border-radius: 10px; }
+    input { width: 100%; padding: 10px; margin-top: 6px; border: 1px solid #ddd; border-radius: 10px; }
     button { padding: 10px 14px; margin-top: 12px; cursor: pointer; border: 1px solid #ddd; border-radius: 10px; background: #fff; }
-    button[disabled] { cursor: not-allowed; opacity: 0.6; }
-    .row { display:flex; gap: 12px; align-items: end; flex-wrap: wrap; }
-    .row > div { flex: 1; min-width: 220px; }
-    .muted { opacity: .75; font-size: 13px; }
-
-    #calendar { margin-top: 14px; min-height: 650px; }
-    #out { white-space: pre-wrap; background:#f7f7f7; padding:10px; border-radius:10px; border:1px solid #eee; min-height: 42px; }
-
-    .legend { display:flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
-    .chip { display:inline-flex; align-items:center; gap:8px; border:1px solid #ddd; border-radius:999px; padding:6px 10px; font-size:13px; }
-    .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
-
-    .fc { --fc-border-color: #e5e7eb; --fc-page-bg-color: #ffffff; font-size: 13px; }
-    .fc .fc-toolbar-title { font-size: 18px; font-weight: 650; }
-    .fc .fc-button {
-      background: #fff !important;
-      border: 1px solid #d1d5db !important;
-      color: #111827 !important;
-      border-radius: 10px !important;
-      padding: 7px 10px !important;
-    }
-    .fc .fc-button:disabled { opacity: 0.5; }
-    .fc .fc-daygrid-day-number { font-size: 12px; opacity: .75; padding: 6px; }
-    .fc .fc-daygrid-day { background: #fff; }
-    .fc .fc-daygrid-day.fc-day-sat,
-    .fc .fc-daygrid-day.fc-day-sun { background: #fafafa; }
-    .fc .fc-daygrid-day.fc-day-today { outline: 2px solid #111827; outline-offset: -2px; }
-    .fc .fc-daygrid-event { border-radius: 8px; padding: 2px 6px; border: 0 !important; box-shadow: none; }
-    .fc .fc-daygrid-event .fc-event-title {
-      font-weight: 650;
-      font-size: 12px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .fc .fc-event-time { display: none; }
-    .fc .cm-sub { font-size: 11px; opacity: .9; font-weight: 500; }
+    pre { white-space: pre-wrap; background:#f7f7f7; padding:10px; border-radius:10px; border:1px solid #eee; min-height: 42px; }
   </style>
 </head>
-
 <body>
-  <h2>Calendario Prenotazioni</h2>
+  <h2>Login Supabase</h2>
 
-  <div id="authCard" class="card">
-    <h3>Login</h3>
-    <div class="row">
-      <div>
-        <label>Email
-          <input id="email" type="email" autocomplete="username" />
-        </label>
-      </div>
-      <div>
-        <label>Password
-          <input id="password" type="password" autocomplete="current-password" />
-        </label>
-      </div>
-      <div style="flex:0.8; min-width:260px;">
-        <button id="btnLogin" type="button">Accedi</button>
-        <button id="btnReset" type="button" title="Pulisce sessione e ricarica">Reset</button>
-      </div>
-    </div>
-    <div id="authStatus" class="muted"></div>
-  </div>
+  <div class="card">
+    <label>Email
+      <input id="email" type="email" autocomplete="username" />
+    </label>
 
-  <div id="appCard" class="card" style="display:none;">
-    <div class="row">
-      <div>
-        <label>Struttura
-          <select id="strutturaSelect"></select>
-        </label>
-      </div>
-      <div style="flex:0.8; min-width:260px;">
-        <button id="btnReload" type="button">Ricarica calendario</button>
-      </div>
-    </div>
+    <label>Password
+      <input id="password" type="password" autocomplete="current-password" />
+    </label>
 
-    <div class="legend">
-      <span class="chip"><span class="dot" style="background:#2563eb"></span>Diretta</span>
-      <span class="chip"><span class="dot" style="background:#6b7280"></span>Airbnb (iCal)</span>
-      <span class="chip"><span class="dot" style="background:#16a34a"></span>Diretta (checkin)</span>
-      <span class="chip"><span class="dot" style="background:#dc2626"></span>Diretta (annullata)</span>
-    </div>
+    <button id="btnLogin" type="button">Accedi</button>
+    <button id="btnLogout" type="button">Logout</button>
 
-    <div id="calendar"></div>
-
-    <div class="muted" style="margin-top:10px;">Stato</div>
-    <div id="out" aria-live="polite"></div>
+    <div style="margin-top:10px; opacity:.75;">Stato</div>
+    <pre id="out"></pre>
   </div>
 
   <script>
+    // 1) Inserisci qui i tuoi valori
     const SUPABASE_URL = "https://ybzoitxmlkjmfeoodqlq.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inliem9pdHhtbGtqbWZlb29kcWxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg4MTI2MTIsImV4cCI6MjA4NDM4ODYxMn0.3kV-SnYCjvNay2PjZpz-MA6PZFDS-ZeAgufFbk1ZR6M";
-    const STORAGE_KEY = "sb-auth-prenotazioni-v1";
 
     const el = (id) => document.getElementById(id);
+    const out = (msg) => el("out").textContent = String(msg);
 
-    const log = (msg) => {
-      const s = String(msg);
-      console.log("[APP]", s);
-
-      const now = new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-      const line = `[${now}] ${s}`;
-
-      const appVisible = el("appCard") && el("appCard").style.display !== "none";
-      const target = appVisible ? el("out") : el("authStatus");
-      if (target) target.textContent = target.textContent ? `${target.textContent}\n${line}` : line;
-    };
-
-    // Log errori globali (utile quando "sparisce tutto")
-    window.addEventListener("error", (e) => log("JS error: " + (e?.message || "sconosciuto")));
-    window.addEventListener("unhandledrejection", (e) => log("Promise rejection: " + (e?.reason?.message || e?.reason || "sconosciuta")));
-
-    // Sanity check librerie
-    if (!window.FullCalendar) log("ERRORE: FullCalendar non caricato (CDN?). Controlla rete/console.");
-    if (!window.supabase) log("ERRORE: Supabase non caricato (CDN?). Controlla rete/console.");
-
-    const setLoading = (isLoading) => {
-      const btn = el("btnReload");
-      if (btn) btn.disabled = isLoading;
-      const sel = el("strutturaSelect");
-      if (sel) sel.disabled = isLoading;
-    };
-
-    const clearSbStorage = async () => {
-      try {
-        for (let i = localStorage.length - 1; i >= 0; i--) {
-          const k = localStorage.key(i);
-          if (!k) continue;
-          if (k.startsWith("sb-") || k === STORAGE_KEY) localStorage.removeItem(k);
-        }
-      } catch (_) {}
-      try { sessionStorage.clear(); } catch (_) {}
-      try {
-        if ("caches" in window) {
-          const keys = await caches.keys();
-          await Promise.all(keys.map(k => caches.delete(k)));
-        }
-      } catch (_) {}
-    };
-
-    // Supabase client (GLOBAL)
-    const supabaseClient = window.supabase?.createClient?.(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-        storageKey: STORAGE_KEY
-      }
-    });
-
-    let calendar = null;
-    let lastRangeKey = "";
-    let reloadTimer = null;
-
-    const toYMD = (v) => {
-      if (!v) return "";
-      return String(v).slice(0, 10);
-    };
-
-    const debounce = (fn, ms) => {
-      return (...args) => {
-        if (reloadTimer) clearTimeout(reloadTimer);
-        reloadTimer = setTimeout(() => fn(...args), ms);
-      };
-    };
-
-    function colorForDiretta(stato) {
-      if (stato === "annullata") return "#dc2626";
-      if (stato === "checkin") return "#16a34a";
-      return "#2563eb";
+    if (!window.supabase) {
+      out("ERRORE: libreria Supabase non caricata (CDN).");
+      throw new Error("Supabase UMD non presente");
     }
 
-    function mapPrenotazioniToEvents(rows) {
-      return (rows ?? []).map(r => ({
-        id: "dir_" + r.id,
-        title: (r.nome_ospite && r.nome_ospite.trim()) ? r.nome_ospite.trim() : "Diretta",
-        start: toYMD(r.checkin),
-        end: toYMD(r.checkout), // end esclusivo (checkout = giorno uscita)
-        allDay: true,
-        backgroundColor: colorForDiretta(r.stato),
-        borderColor: "transparent",
-        textColor: "#fff",
-        extendedProps: { origine: "diretta", stato: r.stato ?? "" }
-      })).filter(e => e.start && e.end);
+    // 2) Crea client
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // 3) UI state
+    async function refresh() {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) { out("Errore getSession: " + error.message); return; }
+      const session = data?.session;
+      out(session ? ("LOGGATO: " + session.user.email) : "NON LOGGATO");
     }
 
-    function mapAirbnbToEvents(rows) {
-      return (rows ?? []).map(r => ({
-        id: "ab_" + r.id,
-        title: r.titolo ?? "Airbnb",
-        start: toYMD(r.inizio),
-        end: toYMD(r.fine),
-        allDay: true,
-        backgroundColor: "#6b7280",
-        borderColor: "transparent",
-        textColor: "#fff",
-        extendedProps: { origine: r.origine ?? "airbnb_ical", stato: "" }
-      })).filter(e => e.start && e.end);
-    }
-
-    function ensureCalendar() {
-      if (calendar) return;
-
-      const calEl = el("calendar");
-      if (!calEl) { log("ERRORE: #calendar non trovato."); return; }
-      if (!window.FullCalendar) { log("ERRORE: FullCalendar assente."); return; }
-
-      calendar = new FullCalendar.Calendar(calEl, {
-        initialView: "dayGridMonth",
-        height: "auto",
-        firstDay: 1,
-        locale: "it",
-        nowIndicator: true,
-        navLinks: true,
-        fixedWeekCount: false,
-        showNonCurrentDates: false,
-        eventDisplay: "block",
-        dayMaxEvents: 6,
-
-        headerToolbar: {
-          left: "prev,next today",
-          center: "title",
-          right: "dayGridMonth,timeGridWeek,timeGridDay"
-        },
-
-        eventContent: function(arg) {
-          const titolo = arg.event.title || "";
-          const origine = arg.event.extendedProps?.origine || "";
-          const stato = arg.event.extendedProps?.stato || "";
-          const sub = origine === "airbnb_ical" ? "Airbnb" : (origine === "diretta" ? "Diretta" : origine);
-          const sub2 = stato ? ` • ${stato}` : "";
-
-          const wrap = document.createElement("div");
-          const line1 = document.createElement("div");
-          line1.textContent = titolo;
-
-          const line2 = document.createElement("div");
-          line2.className = "cm-sub";
-          line2.textContent = sub + sub2;
-
-          wrap.appendChild(line1);
-          wrap.appendChild(line2);
-          return { domNodes: [wrap] };
-        },
-
-        eventDidMount: function(info) {
-          const t = info.event.title;
-          const o = info.event.extendedProps?.origine;
-          const s = info.event.extendedProps?.stato;
-          info.el.title = [t, o, s].filter(Boolean).join(" | ");
-        },
-
-        datesSet: debounce(async function(arg) {
-          await reloadCalendarEvents(arg.start, arg.end);
-        }, 180)
-      });
-
-      calendar.render();
-      log("FullCalendar render OK.");
-
-      // Ridisegno quando diventa visibile (display:none -> block)
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          try { calendar.updateSize(); } catch (_) {}
-        });
-      });
-    }
-
-    async function loadStrutture() {
-      const { data, error } = await supabaseClient.from("strutture").select("id,nome").order("nome");
-      if (error) { log("Errore strutture: " + (error.message ?? String(error))); return []; }
-
-      const sel = el("strutturaSelect");
-      sel.innerHTML = "";
-
-      const rows = data ?? [];
-      for (const s of rows) {
-        const opt = document.createElement("option");
-        opt.value = s.id;
-        opt.textContent = s.nome;
-        sel.appendChild(opt);
-      }
-
-      if (rows.length === 0) log("Nessuna struttura trovata per questo utente.");
-      return rows;
-    }
-
-    async function reloadCalendarEvents(viewStartDate, viewEndDate) {
-      const struttura_id = el("strutturaSelect")?.value;
-      if (!struttura_id) { log("Seleziona una struttura."); return; }
-      if (!calendar) return;
-
-      const start = toYMD(viewStartDate.toISOString());
-      const end = toYMD(viewEndDate.toISOString());
-
-      const rangeKey = `${struttura_id}|${start}|${end}`;
-      if (rangeKey === lastRangeKey) return;
-      lastRangeKey = rangeKey;
-
-      log(`Ricarico calendario ${start} → ${end}`);
-      setLoading(true);
-
-      try {
-        // Overlap robusto: checkin < end AND checkout > start
-        // Nota: uso gte/lt per evitare tagli ai bordi (dipende da come salvi checkout/fine)
-        const dirQ = supabaseClient
-          .from("prenotazioni")
-          .select("id, checkin, checkout, nome_ospite, stato")
-          .eq("struttura_id", struttura_id)
-          .lt("checkin", end)
-          .gte("checkout", start);
-
-        const abQ = supabaseClient
-          .from("eventi_calendario")
-          .select("id, titolo, inizio, fine, origine, attivo")
-          .eq("struttura_id", struttura_id)
-          .eq("origine", "airbnb_ical")
-          .eq("attivo", true)
-          .lt("inizio", end)
-          .gte("fine", start);
-
-        const [dirRes, abRes] = await Promise.all([dirQ, abQ]);
-
-        if (dirRes.error) { log("Errore prenotazioni: " + (dirRes.error.message ?? String(dirRes.error))); return; }
-        if (abRes.error) { log("Errore eventi calendario: " + (abRes.error.message ?? String(abRes.error))); return; }
-
-        const events = [
-          ...mapAirbnbToEvents(abRes.data),
-          ...mapPrenotazioniToEvents(dirRes.data)
-        ];
-
-        calendar.removeAllEvents();
-        calendar.addEventSource(events);
-
-        log(`Eventi caricati: Airbnb=${abRes.data?.length ?? 0} | Dirette=${dirRes.data?.length ?? 0}`);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    async function refreshUI() {
-      if (!supabaseClient) {
-        log("ERRORE: client Supabase non creato (libreria non caricata).");
-        return;
-      }
-
-      const { data, error } = await supabaseClient.auth.getSession();
-      if (error) log("Errore getSession: " + (error.message ?? String(error)));
-
-      const session = data?.session ?? null;
-      const logged = !!session;
-
-      el("appCard").style.display = logged ? "block" : "none";
-      el("authStatus").textContent = logged ? `Loggato come: ${session.user.email}` : "Non loggato";
-
-      // Debug: crea comunque il calendario "vuoto" anche se non loggato
-      // così distingui subito problema di FullCalendar vs login.
-      if (!logged) {
-        log("Non loggato: mostro solo login. (Calendario non caricato eventi)");
-        return;
-      }
-
-      const strutture = await loadStrutture();
-
-      // RENDER calendario dopo che appCard è visibile
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          ensureCalendar();
-        });
-      });
-
-      if (!strutture.length) {
-        if (calendar) calendar.removeAllEvents();
-        log("Impossibile caricare eventi: nessuna struttura disponibile.");
-        return;
-      }
-
-      // aspetta un tick perché calendar.view esista
-      setTimeout(async () => {
-        try { calendar.updateSize(); } catch (_) {}
-        const v = calendar.view;
-        await reloadCalendarEvents(v.activeStart, v.activeEnd);
-      }, 0);
-    }
-
-    async function doLogin() {
+    // 4) Login
+    async function login() {
       const email = el("email").value.trim();
       const password = el("password").value;
-      if (!email || !password) { log("Inserisci email e password."); return; }
-      if (!supabaseClient) { log("Supabase non disponibile."); return; }
 
-      log("Click login ricevuto. Provo autenticazione...");
-      try {
-        const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-        if (error) { log("Errore login: " + (error.message ?? String(error))); return; }
-        log("Login OK.");
-        await refreshUI();
-      } catch (e) {
-        log("Eccezione login: " + (e?.message ?? String(e)));
-      }
+      if (!email || !password) { out("Inserisci email e password."); return; }
+
+      out("Login in corso...");
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+      if (error) { out("Errore login: " + error.message); return; }
+      out("Login OK: " + data.user.email);
     }
 
-    // Bind bottoni
-    el("btnLogin").addEventListener("click", (e) => { e.preventDefault(); doLogin(); }, { passive: false });
-
-    el("btnReset").onclick = async () => {
-      try { await supabaseClient?.auth?.signOut?.(); } catch (_) {}
-      await clearSbStorage();
-      const base = window.location.origin + window.location.pathname;
-      window.location.href = base + "?v=" + Date.now();
-    };
-
-    el("btnReload").onclick = async () => {
-      if (!calendar) { log("Calendario non inizializzato."); return; }
-      lastRangeKey = "";
-      const v = calendar.view;
-      await reloadCalendarEvents(v.activeStart, v.activeEnd);
-    };
-
-    el("strutturaSelect").addEventListener("change", async () => {
-      if (!calendar) return;
-      lastRangeKey = "";
-      const v = calendar.view;
-      await reloadCalendarEvents(v.activeStart, v.activeEnd);
-    });
-
-    // Auth listener
-    if (supabaseClient?.auth?.onAuthStateChange) {
-      supabaseClient.auth.onAuthStateChange(async () => {
-        lastRangeKey = "";
-        await refreshUI();
-      });
+    // 5) Logout
+    async function logout() {
+      out("Logout in corso...");
+      const { error } = await supabase.auth.signOut();
+      if (error) { out("Errore logout: " + error.message); return; }
+      out("Logout OK");
     }
 
-    log("Script caricato.");
-    refreshUI();
+    // Bind
+    el("btnLogin").addEventListener("click", login);
+    el("btnLogout").addEventListener("click", logout);
+
+    // Aggiorna stato all’avvio e ai cambi sessione
+    supabase.auth.onAuthStateChange(() => refresh());
+    refresh();
   </script>
 </body>
 </html>
