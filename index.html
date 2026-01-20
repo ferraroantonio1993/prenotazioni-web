@@ -23,16 +23,14 @@
     .row > div { flex: 1; min-width: 220px; }
     .muted { opacity: .75; font-size: 13px; }
 
-    /* IMPORTANT: altezza minima per evitare calendario "bianco" */
     #calendar { margin-top: 14px; min-height: 650px; }
-
     #out { white-space: pre-wrap; background:#f7f7f7; padding:10px; border-radius:10px; border:1px solid #eee; min-height: 42px; }
 
     .legend { display:flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
     .chip { display:inline-flex; align-items:center; gap:8px; border:1px solid #ddd; border-radius:999px; padding:6px 10px; font-size:13px; }
     .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
 
-    /* ---- Look "channel manager" ---- */
+    /* Look "channel manager" */
     .fc {
       --fc-border-color: #e5e7eb;
       --fc-page-bg-color: #ffffff;
@@ -117,11 +115,10 @@
   <script>
     const SUPABASE_URL = "https://ybzoitxmlkjmfeoodqlq.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inliem9pdHhtbGtqbWZlb29kcWxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg4MTI2MTIsImV4cCI6MjA4NDM4ODYxMn0.3kV-SnYCjvNay2PjZpz-MA6PZFDS-ZeAgufFbk1ZR6M";
-
-    // StorageKey dedicata per evitare collisioni con prove precedenti
     const STORAGE_KEY = "sb-auth-prenotazioni-v1";
 
     const el = (id) => document.getElementById(id);
+
     const log = (msg) => {
       const s = String(msg);
       console.log("[APP]", s);
@@ -133,7 +130,6 @@
       }
     };
 
-    // CHECK: FullCalendar caricato?
     if (!window.FullCalendar) {
       log("ERRORE: FullCalendar non caricato. Controlla lo script index.global.min.js nel <head>.");
     }
@@ -146,7 +142,6 @@
     };
 
     const clearSbStorage = async () => {
-      // Local/session storage
       try {
         for (let i = localStorage.length - 1; i >= 0; i--) {
           const k = localStorage.key(i);
@@ -156,7 +151,6 @@
       } catch (_) {}
       try { sessionStorage.clear(); } catch (_) {}
 
-      // Cache Storage (se presente)
       try {
         if ("caches" in window) {
           const keys = await caches.keys();
@@ -176,6 +170,21 @@
     });
 
     let calendar = null;
+    let lastRangeKey = "";
+    let reloadTimer = null;
+
+    const toYMD = (v) => {
+      if (!v) return "";
+      // gestisce "YYYY-MM-DD", "YYYY-MM-DDTHH:mm:ss", ecc.
+      return String(v).slice(0, 10);
+    };
+
+    const debounce = (fn, ms) => {
+      return (...args) => {
+        if (reloadTimer) clearTimeout(reloadTimer);
+        reloadTimer = setTimeout(() => fn(...args), ms);
+      };
+    };
 
     function ensureCalendar() {
       if (calendar) return;
@@ -206,6 +215,7 @@
           const sub2 = stato ? ` • ${stato}` : "";
 
           const wrap = document.createElement("div");
+
           const line1 = document.createElement("div");
           line1.textContent = titolo;
 
@@ -225,9 +235,9 @@
           info.el.title = [t, o, s].filter(Boolean).join(" | ");
         },
 
-        datesSet: async function(arg) {
+        datesSet: debounce(async function(arg) {
           await reloadCalendarEvents(arg.start, arg.end);
-        }
+        }, 180)
       });
 
       calendar.render();
@@ -240,16 +250,21 @@
 
     async function loadStrutture() {
       const { data, error } = await supabase.from("strutture").select("id,nome").order("nome");
-      if (error) { log("Errore strutture: " + (error.message ?? String(error))); return; }
+      if (error) { log("Errore strutture: " + (error.message ?? String(error))); return []; }
 
       const sel = el("strutturaSelect");
       sel.innerHTML = "";
-      for (const s of (data ?? [])) {
+
+      const rows = data ?? [];
+      for (const s of rows) {
         const opt = document.createElement("option");
         opt.value = s.id;
         opt.textContent = s.nome;
         sel.appendChild(opt);
       }
+
+      if (rows.length === 0) log("Nessuna struttura trovata per questo utente.");
+      return rows;
     }
 
     function colorForDiretta(stato) {
@@ -262,51 +277,54 @@
       return (rows ?? []).map(r => ({
         id: "dir_" + r.id,
         title: (r.nome_ospite && r.nome_ospite.trim()) ? r.nome_ospite.trim() : "Diretta",
-        start: (r.checkin ?? "").slice(0,10),
-        end: (r.checkout ?? "").slice(0,10),
+        start: toYMD(r.checkin),
+        end: toYMD(r.checkout), // end esclusivo per FullCalendar (corretto se checkout = giorno uscita)
         allDay: true,
         backgroundColor: colorForDiretta(r.stato),
         borderColor: "transparent",
         textColor: "#fff",
         extendedProps: { origine: "diretta", stato: r.stato ?? "" }
-      }));
+      })).filter(e => e.start && e.end);
     }
 
     function mapAirbnbToEvents(rows) {
       return (rows ?? []).map(r => ({
         id: "ab_" + r.id,
         title: r.titolo ?? "Airbnb",
-        start: (r.inizio ?? "").slice(0,10),
-        end: (r.fine ?? "").slice(0,10),
+        start: toYMD(r.inizio),
+        end: toYMD(r.fine),
         allDay: true,
         backgroundColor: "#6b7280",
         borderColor: "transparent",
         textColor: "#fff",
         extendedProps: { origine: r.origine ?? "airbnb_ical", stato: "" }
-      }));
+      })).filter(e => e.start && e.end);
     }
 
     async function reloadCalendarEvents(viewStartDate, viewEndDate) {
       const struttura_id = el("strutturaSelect")?.value;
       if (!struttura_id || !calendar) return;
 
-      const start = viewStartDate.toISOString().slice(0,10);
-      const end = viewEndDate.toISOString().slice(0,10);
+      const start = toYMD(viewStartDate.toISOString());
+      const end = toYMD(viewEndDate.toISOString());
+
+      // evita ricarichi identici
+      const rangeKey = `${struttura_id}|${start}|${end}`;
+      if (rangeKey === lastRangeKey) return;
+      lastRangeKey = rangeKey;
 
       log(`Ricarico calendario ${start} → ${end}`);
       setLoading(true);
 
       try {
-        const dirRes = await supabase
+        const dirQ = supabase
           .from("prenotazioni")
           .select("id, checkin, checkout, nome_ospite, stato")
           .eq("struttura_id", struttura_id)
           .lt("checkin", end)
           .gt("checkout", start);
 
-        if (dirRes.error) { log("Errore prenotazioni: " + (dirRes.error.message ?? String(dirRes.error))); return; }
-
-        const abRes = await supabase
+        const abQ = supabase
           .from("eventi_calendario")
           .select("id, titolo, inizio, fine, origine, attivo")
           .eq("struttura_id", struttura_id)
@@ -315,6 +333,9 @@
           .lt("inizio", end)
           .gt("fine", start);
 
+        const [dirRes, abRes] = await Promise.all([dirQ, abQ]);
+
+        if (dirRes.error) { log("Errore prenotazioni: " + (dirRes.error.message ?? String(dirRes.error))); return; }
         if (abRes.error) { log("Errore eventi calendario: " + (abRes.error.message ?? String(abRes.error))); return; }
 
         const events = [
@@ -339,19 +360,21 @@
       const logged = !!session;
 
       el("appCard").style.display = logged ? "block" : "none";
-      el("authStatus").textContent = logged
-        ? `Loggato come: ${session.user.email}`
-        : "Non loggato";
+      el("authStatus").textContent = logged ? `Loggato come: ${session.user.email}` : "Non loggato";
 
       if (!logged) return;
 
-      await loadStrutture();
+      const strutture = await loadStrutture();
       ensureCalendar();
 
-      // Forza resize dopo che la card è visibile
-      setTimeout(() => {
-        try { calendar.updateSize(); } catch (_) {}
-      }, 50);
+      // se non ci sono strutture, non interrogare eventi
+      if (!strutture.length) {
+        calendar.removeAllEvents();
+        log("Impossibile caricare eventi: nessuna struttura disponibile.");
+        return;
+      }
+
+      setTimeout(() => { try { calendar.updateSize(); } catch (_) {} }, 50);
 
       const v = calendar.view;
       await reloadCalendarEvents(v.activeStart, v.activeEnd);
@@ -378,17 +401,22 @@
 
     el("btnReload").onclick = async () => {
       if (!calendar) return;
+      // forza reload anche su stesso range
+      lastRangeKey = "";
       const v = calendar.view;
       await reloadCalendarEvents(v.activeStart, v.activeEnd);
     };
 
     el("strutturaSelect").addEventListener("change", async () => {
       if (!calendar) return;
+      lastRangeKey = "";
       const v = calendar.view;
       await reloadCalendarEvents(v.activeStart, v.activeEnd);
     });
 
     supabase.auth.onAuthStateChange(async () => {
+      // reset range cache quando cambia sessione
+      lastRangeKey = "";
       await refreshUI();
     });
 
