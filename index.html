@@ -79,14 +79,22 @@
   </div>
 
   <script type="module">
-    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
     const SUPABASE_URL = "https://ybzoitxmlkjmfeoodqlq.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inliem9pdHhtbGtqbWZlb29kcWxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg4MTI2MTIsImV4cCI6MjA4NDM4ODYxMn0.3kV-SnYCjvNay2PjZpz-MA6PZFDS-ZeAgufFbk1ZR6M";
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: false,     // evita stati incastrati
+        autoRefreshToken: false,   // per questa demo va bene
+        detectSessionInUrl: false
+      }
+    });
 
     const el = (id) => document.getElementById(id);
     const out = (obj) => el("out").textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+
+    out("Script caricato. Inserisci email e password e premi Accedi.");
 
     async function loadStrutture() {
       // Strutture accessibili (via RLS)
