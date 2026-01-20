@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Prenotazioni Dirette</title>
+  <style>
+    body { font-family: system-ui, Arial; max-width: 860px; margin: 24px auto; padding: 0 12px; }
+    .card { border: 1px solid #ddd; border-radius: 10px; padding: 16px; margin: 12px 0; }
+    label { display:block; margin-top: 10px; }
+    input, select, textarea { width: 100%; padding: 8px; margin-top: 6px; }
+    button { padding: 10px 14px; margin-top: 12px; cursor: pointer; }
+    pre { background: #f7f7f7; padding: 10px; overflow:auto; }
+    .row { display:flex; gap: 12px; }
+    .row > div { flex: 1; }
+  </style>
+</head>
+<body>
+  <h2>Prenotazioni Dirette (test)</h2>
+
+  <div id="authCard" class="card">
+    <h3>Login</h3>
+    <label>Email <input id="email" type="email" /></label>
+    <label>Password <input id="password" type="password" /></label>
+    <button id="btnLogin">Accedi</button>
+    <button id="btnLogout" style="display:none;">Esci</button>
+    <div id="authStatus"></div>
+  </div>
+
+  <div id="appCard" class="card" style="display:none;">
+    <h3>Nuova prenotazione diretta</h3>
+
+    <label>Struttura
+      <select id="strutturaSelect"></select>
+    </label>
+
+    <div class="row">
+      <div>
+        <label>Check-in <input id="checkin" type="date" /></label>
+      </div>
+      <div>
+        <label>Check-out <input id="checkout" type="date" /></label>
+      </div>
+    </div>
+
+    <label>Nome ospite <input id="nomeOspite" type="text" /></label>
+
+    <div class="row">
+      <div>
+        <label>Bambini (numero) <input id="bambiniNum" type="number" min="0" value="0" /></label>
+      </div>
+      <div>
+        <label>Stato
+          <select id="stato">
+            <option value="opzione">opzione</option>
+            <option value="confermata" selected>confermata</option>
+            <option value="annullata">annullata</option>
+            <option value="checkin">checkin</option>
+            <option value="checkout">checkout</option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <label><input id="lateCheckin" type="checkbox" /> Late check-in</label>
+    <label><input id="animali" type="checkbox" /> Animali</label>
+    <label><input id="pulizieRich" type="checkbox" checked /> Pulizie richieste</label>
+
+    <label>Note operative
+      <textarea id="note" rows="3"></textarea>
+    </label>
+
+    <button id="btnCheck">Verifica conflitti</button>
+    <button id="btnSave">Salva prenotazione</button>
+
+    <h4>Output</h4>
+    <pre id="out"></pre>
+  </div>
+
+  <script type="module">
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+    const SUPABASE_URL = "https://ybzoitxmlkjmfeoodqlq.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inliem9pdHhtbGtqbWZlb29kcWxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg4MTI2MTIsImV4cCI6MjA4NDM4ODYxMn0.3kV-SnYCjvNay2PjZpz-MA6PZFDS-ZeAgufFbk1ZR6M";
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const el = (id) => document.getElementById(id);
+    const out = (obj) => el("out").textContent = typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+
+    async function loadStrutture() {
+      // Strutture accessibili (via RLS)
+      const { data, error } = await supabase.from("strutture").select("id,nome").order("nome");
+      if (error) return out(error);
+
+      const sel = el("strutturaSelect");
+      sel.innerHTML = "";
+      for (const s of (data ?? [])) {
+        const opt = document.createElement("option");
+        opt.value = s.id;
+        opt.textContent = `${s.nome} (${s.id.slice(0,8)}…)`;
+        sel.appendChild(opt);
+      }
+    }
+
+    async function refreshUI() {
+      const { data: { session } } = await supabase.auth.getSession();
+      const logged = !!session;
+      el("btnLogin").style.display = logged ? "none" : "inline-block";
+      el("btnLogout").style.display = logged ? "inline-block" : "none";
+      el("appCard").style.display = logged ? "block" : "none";
+      el("authStatus").textContent = logged ? `Loggato come: ${session.user.email}` : "Non loggato";
+
+      if (logged) await loadStrutture();
+    }
+
+    el("btnLogin").onclick = async () => {
+      const email = el("email").value.trim();
+      const password = el("password").value;
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) return out(error);
+      await refreshUI();
+      out("Login OK");
+    };
+
+    el("btnLogout").onclick = async () => {
+      await supabase.auth.signOut();
+      await refreshUI();
+      out("Logout OK");
+    };
+
+    el("btnCheck").onclick = async () => {
+      const struttura_id = el("strutturaSelect").value;
+      const checkin = el("checkin").value;
+      const checkout = el("checkout").value;
+
+      const { data, error } = await supabase.rpc("fn_conflitti_calendario", {
+        p_struttura_id: struttura_id,
+        p_checkin: checkin,
+        p_checkout: checkout,
+        p_escludi_prenotazione_id: null
+      });
+
+      if (error) return out(error);
+      out(data?.[0] ?? data);
+    };
+
+    el("btnSave").onclick = async () => {
+      const struttura_id = el("strutturaSelect").value;
+      const checkin = el("checkin").value;
+      const checkout = el("checkout").value;
+
+      // 1) verifica conflitti
+      const { data: confData, error: confErr } = await supabase.rpc("fn_conflitti_calendario", {
+        p_struttura_id: struttura_id,
+        p_checkin: checkin,
+        p_checkout: checkout,
+        p_escludi_prenotazione_id: null
+      });
+      if (confErr) return out(confErr);
+
+      const conf = confData?.[0];
+      if (conf?.conflitto) {
+        return out({ ok:false, msg:"Conflitto rilevato, salvataggio bloccato", dettagli: conf });
+      }
+
+      // 2) inserisci prenotazione (trigger creerà evento/thread/pulizie)
+      const { data: { user } } = await supabase.auth.getUser();
+      const payload = {
+        struttura_id,
+        checkin,
+        checkout,
+        nome_ospite: el("nomeOspite").value.trim(),
+        stato: el("stato").value,
+        note_operativo: el("note").value,
+        late_checkin: el("lateCheckin").checked,
+        animali: el("animali").checked,
+        bambini_num: parseInt(el("bambiniNum").value || "0", 10),
+        pulizie_richieste: el("pulizieRich").checked,
+        creato_da: user?.id ?? null
+      };
+
+      const { data, error } = await supabase.from("prenotazioni").insert(payload).select().single();
+      if (error) return out(error);
+
+      out({ ok:true, prenotazione: data });
+    };
+
+    supabase.auth.onAuthStateChange(() => refreshUI());
+    await refreshUI();
+  </script>
+</body>
+</html>
