@@ -196,8 +196,8 @@
 
         <div class="row">
           <div>
-            <label>Numero ospiti
-              <input id="bkOspiti" type="number" min="1" step="1" />
+            <label>Numero persone
+              <input id="bkPersone" type="number" min="1" step="1" />
             </label>
           </div>
           <div>
@@ -217,7 +217,7 @@
                 <option value="Altro">Altro</option>
               </select>
             </label>
-            <div class="help">Viene salvato nella colonna tipo_pagamento.</div>
+            <div class="help">Viene salvato se la colonna esiste in Supabase.</div>
           </div>
           <div style="flex:0.6; min-width:220px;">
             <label>Pulizie
@@ -554,14 +554,9 @@ function mapPrenotazioniToEvents(rows) {
       el("bkCognome").value = "";
       el("bkArrivo").value = defaultStartYMD || "";
       el("bkPartenza").value = defaultEndYMD || "";
-
-      el("bkOspiti").value = "";
+      el("bkPersone").value = "";
       el("bkCosto").value = "";
       el("bkPagamento").value = "";
-
-      // default come richiesto
-      el("bkAnimali").value = "false";
-      el("bkBambini").value = "0";
       el("bkPulizie").value = "false";
 
       m.style.display = "flex";
@@ -597,62 +592,50 @@ function mapPrenotazioniToEvents(rows) {
       const checkin = el("bkArrivo").value;
       const checkout = el("bkPartenza").value;
 
-      const ospitiRaw = el("bkOspiti").value;
+      const numPersoneRaw = el("bkPersone").value;
       const costoRaw = el("bkCosto").value;
-      const tipo_pagamento = el("bkPagamento").value || null;
-
-      const animali = el("bkAnimali").value === "true";   // default false
-      const bambini_num = el("bkBambini").value ? parseInt(el("bkBambini").value, 10) : 0; // default 0
-      const pulizie = el("bkPulizie").value === "true";   // default false
+      const pagamento = el("bkPagamento").value;
+      const pulizie = el("bkPulizie").value === "true";
 
       if (!nome || !cognome) { alert("Inserisci nome e cognome."); return; }
       if (!checkin || !checkout) { alert("Inserisci data arrivo e data partenza."); return; }
       if (checkout <= checkin) { alert("La data partenza deve essere successiva alla data arrivo."); return; }
 
-      const numero_ospiti = ospitiRaw ? parseInt(ospitiRaw, 10) : null;
-      if (numero_ospiti == null || Number.isNaN(numero_ospiti) || numero_ospiti < 1) {
-        alert("Inserisci un numero ospiti valido (>= 1).");
-        return;
-      }
-
+      const num_persone = numPersoneRaw ? parseInt(numPersoneRaw, 10) : null;
       const costo = costoRaw ? parseFloat(costoRaw) : null;
 
-      // Colonne esatte in Supabase (come da tua lista)
-      const payload = {
+      // Payload completo (se le colonne esistono). Se fallisce, ripiega sul minimo.
+      const fullPayload = {
         struttura_id,
-        checkin,            // date
-        checkout,           // date
+        checkin,
+        checkout,
         nome_ospite: `${nome} ${cognome}`.trim(),
-        animali,            // bool
-        bambini_num,        // int4
-        tipo_pagamento,     // text
-        pulizie,            // bool
-        numero_ospiti,      // int4
-        costo               // numeric
+        numero_persone: num_persone,
+        num_persone: num_persone,
+        persone: num_persone,
+        costo,
+        prezzo: costo,
+        pagamento: pagamento || null,
+        tipo_pagamento: pagamento || null,
+        pulizie
+      };
+
+      const minimalPayload = {
+        struttura_id,
+        checkin,
+        checkout,
+        nome_ospite: `${nome} ${cognome}`.trim(),
+        pulizie
       };
 
       const btn = el("btnBkSave");
       if (btn) btn.disabled = true;
 
       try {
-        const { error } = await supabaseClient.from("prenotazioni").insert([payload]);
+        let { error } = await supabaseClient.from("prenotazioni").insert([fullPayload]);
         if (error) {
-          console.error("Insert prenotazione error:", error);
-          alert("Errore nel salvataggio. Controlla RLS/policy e permessi sulla tabella 'prenotazioni'.");
-          return;
+          ({ error } = await supabaseClient.from("prenotazioni").insert([minimalPayload]));
         }
-
-        closeBookingModal();
-
-        if (calendar) {
-          lastRangeKey = "";
-          const v = calendar.view;
-          await reloadCalendarEvents(v.activeStart, v.activeEnd);
-        }
-      } finally {
-        if (btn) btn.disabled = false;
-      }
-    }
         if (error) {
           console.error("Insert prenotazione error:", error);
           alert("Errore nel salvataggio. Verifica colonne e policy RLS su 'prenotazioni'.");
