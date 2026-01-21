@@ -14,11 +14,40 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
-    body { font-family: system-ui, Arial; max-width: 1100px; margin: 18px auto; padding: 0 12px; }
-    .card { border: 1px solid #ddd; border-radius: 12px; padding: 14px; margin: 12px 0; }
+    body {
+      font-family: system-ui, Arial;
+      max-width: 1100px;
+      margin: 18px auto;
+      padding: 0 12px;
+      background: #0b1220;
+      color: #e5e7eb;
+    }
+    .card {
+      border: 1px solid #243041;
+      border-radius: 12px;
+      padding: 14px;
+      margin: 12px 0;
+      background: #0f172a;
+    }
     label { display:block; margin-top: 10px; }
-    input, select { width: 100%; padding: 10px; margin-top: 6px; border: 1px solid #ddd; border-radius: 10px; }
-    button { padding: 10px 14px; margin-top: 12px; cursor: pointer; border: 1px solid #ddd; border-radius: 10px; background: #fff; }
+    input, select {
+      width: 100%;
+      padding: 10px;
+      margin-top: 6px;
+      border: 1px solid #243041;
+      border-radius: 10px;
+      background: #0b1220;
+      color: #e5e7eb;
+    }
+    button {
+      padding: 10px 14px;
+      margin-top: 12px;
+      cursor: pointer;
+      border: 1px solid #243041;
+      border-radius: 10px;
+      background: #111827;
+      color: #e5e7eb;
+    }
     button[disabled] { cursor: not-allowed; opacity: 0.6; }
     .row { display:flex; gap: 12px; align-items: end; flex-wrap: wrap; }
     .row > div { flex: 1; min-width: 220px; }
@@ -27,24 +56,24 @@
     #calendar { margin-top: 14px; min-height: 650px; }
 
     .legend { display:flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
-    .chip { display:inline-flex; align-items:center; gap:8px; border:1px solid #ddd; border-radius:999px; padding:6px 10px; font-size:13px; }
+    .chip { display:inline-flex; align-items:center; gap:8px; border:1px solid #243041; border-radius:999px; padding:6px 10px; font-size:13px; }
     .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
 
-    .fc { --fc-border-color: #e5e7eb; --fc-page-bg-color: #ffffff; font-size: 13px; }
-    .fc .fc-toolbar-title { font-size: 18px; font-weight: 650; }
+    .fc { --fc-border-color: #243041; --fc-page-bg-color: #0f172a; font-size: 13px; }
+    .fc .fc-toolbar-title { font-size: 18px; font-weight: 650; color: #e5e7eb; }
     .fc .fc-button {
-      background: #fff !important;
-      border: 1px solid #d1d5db !important;
-      color: #111827 !important;
+      background: #111827 !important;
+      border: 1px solid #243041 !important;
+      color: #e5e7eb !important;
       border-radius: 10px !important;
       padding: 7px 10px !important;
     }
     .fc .fc-button:disabled { opacity: 0.5; }
-    .fc .fc-daygrid-day-number { font-size: 12px; opacity: .75; padding: 6px; }
-    .fc .fc-daygrid-day { background: #fff; }
+    .fc .fc-daygrid-day-number { font-size: 12px; opacity: .85; padding: 6px; color: #cbd5e1; }
+    .fc .fc-daygrid-day { background: #0f172a; }
     .fc .fc-daygrid-day.fc-day-sat,
-    .fc .fc-daygrid-day.fc-day-sun { background: #fafafa; }
-    .fc .fc-daygrid-day.fc-day-today { outline: 2px solid #111827; outline-offset: -2px; }
+    .fc .fc-daygrid-day.fc-day-sun { background: #0b1220; }
+    .fc .fc-daygrid-day.fc-day-today { outline: 2px solid #e5e7eb; outline-offset: -2px; }
     .fc .fc-daygrid-event { border-radius: 8px; padding: 2px 6px; border: 0 !important; box-shadow: none; }
     .fc .fc-daygrid-event .fc-event-title {
       font-weight: 650;
@@ -96,8 +125,8 @@
     </div>
 
         <div class="legend">
-      <span class="chip"><span class="dot" style="background:#86efac"></span>Diretta</span>
-      <span class="chip"><span class="dot" style="background:#f9a8d4"></span>Airbnb</span>
+      <span class="chip"><span class="dot" style="background:#BBF7D0"></span>Diretta</span>
+      <span class="chip"><span class="dot" style="background:#FBCFE8"></span>Airbnb</span>
     </div>
 
     <div id="calendar"></div>
@@ -159,7 +188,7 @@
     };
 
     function colorForDiretta(_stato) {
-      return "#86efac";
+      return "#BBF7D0";
     }
 
 function mapPrenotazioniToEvents(rows) {
@@ -183,7 +212,7 @@ function mapPrenotazioniToEvents(rows) {
         start: toLocalYMD(r.inizio),
         end: toLocalYMD(r.fine), // end esclusivo (fine = checkout)
         allDay: true,
-        backgroundColor: "#f9a8d4",
+        backgroundColor: "#FBCFE8",
         borderColor: "transparent",
         textColor: "#111827",
         extendedProps: { origine: r.origine ?? "airbnb_ical", stato: "" }
