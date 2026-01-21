@@ -84,6 +84,36 @@
     }
     .fc .fc-event-time { display: none; }
     .fc .cm-sub { font-size: 11px; opacity: .9; font-weight: 500; }
+  
+    /* Modal */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 9999;
+    }
+    .modal {
+      width: min(680px, 100%);
+      background: #0f172a;
+      border: 1px solid #243041;
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: 0 12px 40px rgba(0,0,0,.45);
+    }
+    .modal h3 { margin: 0 0 10px 0; color: #e5e7eb; }
+    .modal .actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .help { font-size: 12px; opacity: .8; margin-top: 6px; }
+
   </style>
 </head>
 
@@ -118,7 +148,8 @@
           <select id="strutturaSelect"></select>
         </label>
       </div>
-      <div style="flex:0.8; min-width:320px; display:flex; gap:10px; justify-content:flex-end;">
+      <div style="flex:0.8; min-width:420px; display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
+        <button id="btnNewBooking" type="button">Nuova prenotazione</button>
         <button id="btnReload" type="button">Ricarica calendario</button>
         <button id="btnLogout" type="button">Esci</button>
       </div>
@@ -131,6 +162,82 @@
 
     <div id="calendar"></div>
   </div>
+
+    <!-- MODAL: Nuova prenotazione -->
+    <div id="bookingModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="bookingTitle">
+      <div class="modal">
+        <h3 id="bookingTitle">Nuova prenotazione</h3>
+
+        <div class="row">
+          <div>
+            <label>Nome
+              <input id="bkNome" type="text" autocomplete="given-name" />
+            </label>
+          </div>
+          <div>
+            <label>Cognome
+              <input id="bkCognome" type="text" autocomplete="family-name" />
+            </label>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>Data arrivo
+              <input id="bkArrivo" type="date" />
+            </label>
+          </div>
+          <div>
+            <label>Data partenza
+              <input id="bkPartenza" type="date" />
+            </label>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>Numero persone
+              <input id="bkPersone" type="number" min="1" step="1" />
+            </label>
+          </div>
+          <div>
+            <label>Costo (€)
+              <input id="bkCosto" type="number" min="0" step="0.01" inputmode="decimal" />
+            </label>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>Tipo di pagamento
+              <select id="bkPagamento">
+                <option value="">Seleziona...</option>
+                <option value="Elettronico">Elettronico</option>
+                <option value="Contanti">Contanti</option>
+                <option value="Altro">Altro</option>
+              </select>
+            </label>
+            <div class="help">Viene salvato se la colonna esiste in Supabase.</div>
+          </div>
+          <div style="flex:0.6; min-width:220px;">
+            <label>Pulizie
+              <select id="bkPulizie">
+                <option value="false" selected>false</option>
+                <option value="true">true</option>
+              </select>
+            </label>
+            <div class="help">Di default è false; puoi metterlo a true quando vuoi.</div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button id="btnBkCancel" type="button">Annulla</button>
+          <button id="btnBkSave" type="button">Salva prenotazione</button>
+        </div>
+      </div>
+    </div>
+
+
 
   <script>
     const SUPABASE_URL = "https://ybzoitxmlkjmfeoodqlq.supabase.co";
@@ -437,9 +544,147 @@ function mapPrenotazioniToEvents(rows) {
       }
     }
 
+
+    // ===== Prenotazioni: Modal + Insert =====
+    function openBookingModal(defaultStartYMD, defaultEndYMD) {
+      const m = el("bookingModal");
+      if (!m) return;
+
+      el("bkNome").value = "";
+      el("bkCognome").value = "";
+      el("bkArrivo").value = defaultStartYMD || "";
+      el("bkPartenza").value = defaultEndYMD || "";
+      el("bkPersone").value = "";
+      el("bkCosto").value = "";
+      el("bkPagamento").value = "";
+      el("bkPulizie").value = "false";
+
+      m.style.display = "flex";
+      setTimeout(() => { try { el("bkNome").focus(); } catch (_) {} }, 0);
+    }
+
+    function closeBookingModal() {
+      const m = el("bookingModal");
+      if (m) m.style.display = "none";
+    }
+
+    function ymdToday() {
+      const d = new Date();
+      const pad2 = (n) => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+    }
+
+    function addDaysYMD(ymd, days) {
+      const d = new Date(ymd + "T00:00:00");
+      d.setDate(d.getDate() + days);
+      const pad2 = (n) => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+    }
+
+    async function createPrenotazioneFromModal() {
+      if (!supabaseClient) return;
+
+      const struttura_id = el("strutturaSelect")?.value;
+      if (!struttura_id) { alert("Seleziona prima una struttura."); return; }
+
+      const nome = el("bkNome").value.trim();
+      const cognome = el("bkCognome").value.trim();
+      const checkin = el("bkArrivo").value;
+      const checkout = el("bkPartenza").value;
+
+      const numPersoneRaw = el("bkPersone").value;
+      const costoRaw = el("bkCosto").value;
+      const pagamento = el("bkPagamento").value;
+      const pulizie = el("bkPulizie").value === "true";
+
+      if (!nome || !cognome) { alert("Inserisci nome e cognome."); return; }
+      if (!checkin || !checkout) { alert("Inserisci data arrivo e data partenza."); return; }
+      if (checkout <= checkin) { alert("La data partenza deve essere successiva alla data arrivo."); return; }
+
+      const num_persone = numPersoneRaw ? parseInt(numPersoneRaw, 10) : null;
+      const costo = costoRaw ? parseFloat(costoRaw) : null;
+
+      // Payload completo (se le colonne esistono). Se fallisce, ripiega sul minimo.
+      const fullPayload = {
+        struttura_id,
+        checkin,
+        checkout,
+        nome_ospite: `${nome} ${cognome}`.trim(),
+        numero_persone: num_persone,
+        num_persone: num_persone,
+        persone: num_persone,
+        costo,
+        prezzo: costo,
+        pagamento: pagamento || null,
+        tipo_pagamento: pagamento || null,
+        pulizie
+      };
+
+      const minimalPayload = {
+        struttura_id,
+        checkin,
+        checkout,
+        nome_ospite: `${nome} ${cognome}`.trim(),
+        pulizie
+      };
+
+      const btn = el("btnBkSave");
+      if (btn) btn.disabled = true;
+
+      try {
+        let { error } = await supabaseClient.from("prenotazioni").insert([fullPayload]);
+        if (error) {
+          ({ error } = await supabaseClient.from("prenotazioni").insert([minimalPayload]));
+        }
+        if (error) {
+          console.error("Insert prenotazione error:", error);
+          alert("Errore nel salvataggio. Verifica colonne e policy RLS su 'prenotazioni'.");
+          return;
+        }
+
+        closeBookingModal();
+
+        if (calendar) {
+          lastRangeKey = "";
+          const v = calendar.view;
+          await reloadCalendarEvents(v.activeStart, v.activeEnd);
+        }
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
     // Bind bottoni
     el("btnLogin").addEventListener("click", (e) => { e.preventDefault(); doLogin(); }, { passive: false });
     if (el("btnLogout")) el("btnLogout").addEventListener("click", (e) => { e.preventDefault(); doLogout(); }, { passive: false });
+
+    // Nuova prenotazione
+    if (el("btnNewBooking")) {
+      el("btnNewBooking").addEventListener("click", (e) => {
+        e.preventDefault();
+        const start = ymdToday();
+        const end = addDaysYMD(start, 1);
+        openBookingModal(start, end);
+      }, { passive: false });
+    }
+
+    // Modal actions
+    if (el("btnBkCancel")) el("btnBkCancel").addEventListener("click", (e) => { e.preventDefault(); closeBookingModal(); }, { passive: false });
+    if (el("btnBkSave")) el("btnBkSave").addEventListener("click", (e) => { e.preventDefault(); createPrenotazioneFromModal(); }, { passive: false });
+
+    // Click backdrop closes
+    if (el("bookingModal")) {
+      el("bookingModal").addEventListener("click", (e) => {
+        if (e.target === el("bookingModal")) closeBookingModal();
+      });
+    }
+
+    // ESC closes
+    document.addEventListener("keydown", (e) => {
+      const m = el("bookingModal");
+      if (e.key === "Escape" && m && m.style.display === "flex") closeBookingModal();
+    });
+
 
     el("btnReload").addEventListener("click", async (e) => {
       e.preventDefault();
