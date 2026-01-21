@@ -95,11 +95,9 @@
       </div>
     </div>
 
-    <div class="legend">
-      <span class="chip"><span class="dot" style="background:#2563eb"></span>Diretta</span>
-      <span class="chip"><span class="dot" style="background:#6b7280"></span>Airbnb (iCal)</span>
-      <span class="chip"><span class="dot" style="background:#16a34a"></span>Diretta (checkin)</span>
-      <span class="chip"><span class="dot" style="background:#dc2626"></span>Diretta (annullata)</span>
+        <div class="legend">
+      <span class="chip"><span class="dot" style="background:#86efac"></span>Diretta</span>
+      <span class="chip"><span class="dot" style="background:#f9a8d4"></span>Airbnb</span>
     </div>
 
     <div id="calendar"></div>
@@ -159,13 +157,11 @@
       };
     };
 
-    function colorForDiretta(stato) {
-      if (stato === "annullata") return "#dc2626";
-      if (stato === "checkin") return "#16a34a";
-      return "#2563eb";
+    function colorForDiretta(_stato) {
+      return "#86efac";
     }
 
-    function mapPrenotazioniToEvents(rows) {
+function mapPrenotazioniToEvents(rows) {
       return (rows ?? []).map(r => ({
         id: "dir_" + r.id,
         title: (r.nome_ospite && r.nome_ospite.trim()) ? r.nome_ospite.trim() : "Diretta",
@@ -174,7 +170,7 @@
         allDay: true,
         backgroundColor: colorForDiretta(r.stato),
         borderColor: "transparent",
-        textColor: "#fff",
+        textColor: "#111827",
         extendedProps: { origine: "diretta", stato: r.stato ?? "" }
       })).filter(e => e.start && e.end);
     }
@@ -186,9 +182,9 @@
         start: toLocalYMD(r.inizio),
         end: toLocalYMD(r.fine), // end esclusivo (fine = checkout)
         allDay: true,
-        backgroundColor: "#6b7280",
+        backgroundColor: "#f9a8d4",
         borderColor: "transparent",
-        textColor: "#fff",
+        textColor: "#111827",
         extendedProps: { origine: r.origine ?? "airbnb_ical", stato: "" }
       })).filter(e => e.start && e.end);
     }
