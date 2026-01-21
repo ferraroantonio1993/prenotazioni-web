@@ -59,12 +59,7 @@
 </head>
 
 <body>
-	function setAuthUI(logged) {
-  		el("email").disabled = logged;
-	 	el("password").disabled = logged;
-  		el("btnLogin").disabled = logged;
-		el("btnReset").textContent = logged ? "Esci" : "Reset";
-	}
+	
   <h2>Calendario Prenotazioni</h2>
 
   <div id="authCard" class="card">
@@ -130,6 +125,25 @@
     const STORAGE_KEY = "sb-auth-prenotazioni-v1";
 
     const el = (id) => document.getElementById(id);
+
+	function setAuthUI(logged, session) {
+	  // Disabilita login quando sei già loggato
+	  el("email").disabled = logged;
+	  el("password").disabled = logged;
+	  el("btnLogin").disabled = logged;
+	
+	  // Trasforma "Reset" in "Esci" quando loggato
+	  el("btnReset").textContent = logged ? "Esci" : "Reset";
+	  el("btnReset").title = logged ? "Logout" : "Pulisce sessione e ricarica";
+	
+	  // Messaggio di stato coerente
+	  if (logged && session?.user?.email) {
+	    el("authStatus").textContent = `Loggato come: ${session.user.email}`;
+	  } else {
+	    el("authStatus").textContent = "Non loggato";
+	  }
+	}
+
 
     const log = (msg) => {
       const s = String(msg);
@@ -405,20 +419,52 @@
     }
 
     async function refreshUI() {
-		const session = data?.session ?? null;
-		const logged = !!session;
-		
-		setAuthUI(logged);
-		
-		el("appCard").style.display = logged ? "block" : "none";
-		el("authStatus").textContent = logged ? `Loggato come: ${session.user.email}` : "Non loggato";
-		
-		if (!logged) {
-		  log("Non loggato: mostro solo login. (Calendario non caricato eventi)");
-		if (!supabaseClient) {
-			log("ERRORE: client Supabase non creato (libreria non caricata).");
-		return;
-      }
+	  if (!supabaseClient) {
+	    log("ERRORE: client Supabase non creato (libreria non caricata).");
+	    return;
+	  }
+	
+	  const { data, error } = await supabaseClient.auth.getSession();
+	  if (error) log("Errore getSession: " + (error.message ?? String(error)));
+	
+	  const session = data?.session ?? null;
+	  const logged = !!session;
+	
+	  // Aggiorna UI login (disabilita "Accedi", cambia "Reset"->"Esci")
+	  setAuthUI(logged, session);
+	
+	  // Mostra/nasconde la parte app
+	  el("appCard").style.display = logged ? "block" : "none";
+	
+	  if (!logged) {
+	    log("Non loggato: mostro solo login. (Calendario non caricato eventi)");
+	    return;
+	  }
+	
+	  const strutture = await loadStrutture();
+	
+	  // Render calendario quando appCard è visibile
+	  requestAnimationFrame(() => {
+	    requestAnimationFrame(() => {
+	      ensureCalendar();
+	    });
+	  });
+	
+	  if (!strutture.length) {
+	    if (calendar) calendar.removeAllEvents();
+	    log("Impossibile caricare eventi: nessuna struttura disponibile.");
+	    return;
+	  }
+	
+	  // Carica eventi del range attivo
+	  setTimeout(async () => {
+	    try { calendar.updateSize(); } catch (_) {}
+	    const v = calendar.view;
+	    lastRangeKey = "";
+	    await reloadCalendarEvents(v.activeStart, v.activeEnd);
+	  }, 0);
+	}
+
 
       const { data, error } = await supabaseClient.auth.getSession();
       if (error) log("Errore getSession: " + (error.message ?? String(error)));
@@ -460,31 +506,53 @@
     }
 
     async function doLogin() {
-      const email = el("email").value.trim();
-      const password = el("password").value;
-      if (!email || !password) { log("Inserisci email e password."); return; }
-      if (!supabaseClient) { log("Supabase non disponibile."); return; }
-
-      log("Click login ricevuto. Provo autenticazione...");
-      try {
-        const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-        if (error) { log("Errore login: " + (error.message ?? String(error))); return; }
-        log("Login OK.");
-        await refreshUI();
-      } catch (e) {
-        log("Eccezione login: " + (e?.message ?? String(e)));
-      }
-    }
+	  if (!supabaseClient) { log("Supabase non disponibile."); return; }
+	
+	  const { data } = await supabaseClient.auth.getSession();
+	  if (data?.session) {
+	    log("Sei già loggato. Premi 'Esci' per cambiare utente.");
+	    return;
+	  }
+	
+	  const email = el("email").value.trim();
+	  const password = el("password").value;
+	  if (!email || !password) { log("Inserisci email e password."); return; }
+	
+	  log("Click login ricevuto. Provo autenticazione...");
+	  try {
+	    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+	    if (error) { log("Errore login: " + (error.message ?? String(error))); return; }
+	    log("Login OK.");
+	    await refreshUI();
+	  } catch (e) {
+	    log("Eccezione login: " + (e?.message ?? String(e)));
+	  }
+	}
 
     // Bind bottoni
     el("btnLogin").addEventListener("click", (e) => { e.preventDefault(); doLogin(); }, { passive: false });
 
     el("btnReset").onclick = async () => {
-      try { await supabaseClient?.auth?.signOut?.(); } catch (_) {}
-      await clearSbStorage();
-      const base = window.location.origin + window.location.pathname;
-      window.location.href = base + "?v=" + Date.now();
-    };
+	  if (!supabaseClient) return;
+	
+	  const { data } = await supabaseClient.auth.getSession();
+	  const logged = !!data?.session;
+	
+	  if (logged) {
+	    // Logout
+	    try { await supabaseClient.auth.signOut(); } catch (_) {}
+	    log("Logout eseguito.");
+	    lastRangeKey = "";
+	    await refreshUI();
+	    return;
+	  }
+	
+	  // Reset "pesante" quando NON loggato
+	  await clearSbStorage();
+	  const base = window.location.origin + window.location.pathname;
+	  window.location.href = base + "?v=" + Date.now();
+	};
+
 
     el("btnReload").onclick = async () => {
       if (!calendar) { log("Calendario non inizializzato."); return; }
