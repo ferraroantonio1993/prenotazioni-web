@@ -59,6 +59,12 @@
 </head>
 
 <body>
+	function setAuthUI(logged) {
+  		el("email").disabled = logged;
+	 	el("password").disabled = logged;
+  		el("btnLogin").disabled = logged;
+		el("btnReset").textContent = logged ? "Esci" : "Reset";
+	}
   <h2>Calendario Prenotazioni</h2>
 
   <div id="authCard" class="card">
@@ -399,9 +405,19 @@
     }
 
     async function refreshUI() {
-      if (!supabaseClient) {
-        log("ERRORE: client Supabase non creato (libreria non caricata).");
-        return;
+		const session = data?.session ?? null;
+		const logged = !!session;
+		
+		setAuthUI(logged);
+		
+		el("appCard").style.display = logged ? "block" : "none";
+		el("authStatus").textContent = logged ? `Loggato come: ${session.user.email}` : "Non loggato";
+		
+		if (!logged) {
+		  log("Non loggato: mostro solo login. (Calendario non caricato eventi)");
+		if (!supabaseClient) {
+			log("ERRORE: client Supabase non creato (libreria non caricata).");
+		return;
       }
 
       const { data, error } = await supabaseClient.auth.getSession();
